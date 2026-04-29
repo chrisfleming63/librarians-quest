@@ -1,30 +1,102 @@
-import { Text, View, StyleSheet, Image } from "react-native";
+import React, { useEffect, useState } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, SafeAreaView } from "react-native";
+import { useRouter, useFocusEffect } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { COLORS } from "../src/theme";
+import { FemaleLibrarian, MaleLibrarian, CollectibleBook, BannerEnemy } from "../src/Sprites";
 
-const EXPO_PUBLIC_BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+export default function Title() {
+  const router = useRouter();
+  const [highScore, setHighScore] = useState(0);
+  const { width } = Dimensions.get("window");
 
-export default function Index() {
-  console.log(EXPO_PUBLIC_BACKEND_URL, "EXPO_PUBLIC_BACKEND_URL");
+  useFocusEffect(
+    React.useCallback(() => {
+      AsyncStorage.getItem("@lq_high_score").then((v) => {
+        if (v) setHighScore(parseInt(v, 10) || 0);
+      });
+    }, [])
+  );
 
   return (
-    <View style={styles.container}>
-      <Image
-        source={require("../assets/images/app-image.png")}
-        style={styles.image}
-      />
-    </View>
+    <SafeAreaView style={styles.safe} testID="title-screen">
+      {/* Decorative shelf stripes in background */}
+      <View style={styles.bgStripes} pointerEvents="none">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <View key={i} style={[styles.shelfLine, { top: 40 + i * 70 }]} />
+        ))}
+      </View>
+
+      <View style={styles.inner}>
+        <Text style={styles.kicker}>★ PRESENTS ★</Text>
+        <Text style={styles.title}>LIBRARIAN'S</Text>
+        <Text style={[styles.title, styles.titleAccent]}>QUEST</Text>
+        <Text style={styles.subtitle}>Defend the books. Dodge the banners</Text>
+
+        {/* Character preview row */}
+        <View style={styles.charRow}>
+          <View style={styles.charBox}>
+            <MaleLibrarian width={70} height={100} />
+          </View>
+          <View style={styles.vsBadge}>
+            <Text style={styles.vsText}>VS</Text>
+          </View>
+          <View style={styles.charBox}>
+            <BannerEnemy width={60} height={75} />
+          </View>
+        </View>
+
+        <View style={styles.scorePanel}>
+          <Text style={styles.scoreLabel}>HIGH SCORE</Text>
+          <Text style={styles.scoreVal} testID="high-score-value">
+            {String(highScore).padStart(6, "0")}
+          </Text>
+        </View>
+
+        <TouchableOpacity
+          testID="start-game-button"
+          style={[styles.btn, styles.btnPrimary]}
+          activeOpacity={0.8}
+          onPress={() => router.push("/character-select")}
+        >
+          <Text style={styles.btnTextPrimary}>▶  START GAME</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          testID="how-to-play-button"
+          style={[styles.btn, styles.btnSecondary]}
+          activeOpacity={0.8}
+          onPress={() => router.push("/how-to-play")}
+        >
+          <Text style={styles.btnTextSecondary}>HOW TO PLAY</Text>
+        </TouchableOpacity>
+
+        <Text style={styles.footer}>Celebrating Black Literature ✊🏾📚</Text>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#0c0c0c",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  image: {
-    width: "100%",
-    height: "100%",
-    resizeMode: "contain",
-  },
+  safe: { flex: 1, backgroundColor: COLORS.bgBase },
+  bgStripes: { ...StyleSheet.absoluteFillObject, opacity: 0.15 },
+  shelfLine: { position: "absolute", left: 0, right: 0, height: 28, backgroundColor: COLORS.shelfDark, borderBottomWidth: 4, borderBottomColor: COLORS.shelfMid },
+  inner: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
+  kicker: { color: COLORS.muted, fontSize: 11, letterSpacing: 4, marginBottom: 6, fontWeight: "700" },
+  title: { color: COLORS.parchment, fontSize: 44, fontWeight: "900", letterSpacing: 2, lineHeight: 48, textShadowColor: "#000", textShadowOffset: { width: 3, height: 3 }, textShadowRadius: 0 },
+  titleAccent: { color: COLORS.gold, marginTop: 2 },
+  subtitle: { color: COLORS.muted, fontSize: 13, marginTop: 14, letterSpacing: 2, textAlign: "center" },
+  charRow: { flexDirection: "row", alignItems: "center", marginTop: 28, gap: 16 },
+  charBox: { padding: 10, borderWidth: 3, borderColor: COLORS.muted, backgroundColor: COLORS.bgSurface },
+  vsBadge: { backgroundColor: COLORS.ruby, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 3, borderColor: "#000" },
+  vsText: { color: "#FFF", fontWeight: "900", fontSize: 16, letterSpacing: 2 },
+  scorePanel: { marginTop: 28, paddingHorizontal: 26, paddingVertical: 12, backgroundColor: COLORS.bgSurface, borderWidth: 3, borderColor: COLORS.gold, alignItems: "center" },
+  scoreLabel: { color: COLORS.muted, fontSize: 10, letterSpacing: 3, fontWeight: "700" },
+  scoreVal: { color: COLORS.gold, fontSize: 28, fontWeight: "900", letterSpacing: 3, marginTop: 2 },
+  btn: { marginTop: 18, paddingVertical: 14, paddingHorizontal: 40, borderWidth: 4, borderColor: "#000", minWidth: 240, alignItems: "center" },
+  btnPrimary: { backgroundColor: COLORS.neonOrange },
+  btnSecondary: { backgroundColor: COLORS.bgSurface, borderColor: COLORS.muted },
+  btnTextPrimary: { color: "#000", fontWeight: "900", fontSize: 16, letterSpacing: 2 },
+  btnTextSecondary: { color: COLORS.parchment, fontWeight: "900", fontSize: 14, letterSpacing: 2 },
+  footer: { color: COLORS.muted, fontSize: 11, marginTop: 28, letterSpacing: 1 },
 });
