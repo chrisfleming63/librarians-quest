@@ -1,0 +1,160 @@
+{
+  "theme_and_archetype": {
+    "domain": "Mobile Game",
+    "theme": "Dark",
+    "archetype": "Afrofuturist Retro Arcade",
+    "description": "A fusion of rich, warm library tones (mahogany, parchment) and high-energy retro arcade neon. Designed to celebrate African American literature and culture while maintaining a classic 8-bit/16-bit arcade runner feel."
+  },
+  "colors": {
+    "background": {
+      "base": "#1A1110",
+      "surface": "#2C1E16",
+      "overlay": "rgba(26, 17, 16, 0.8)"
+    },
+    "primary": {
+      "gold": "#FFD700",
+      "neon_orange": "#FF6B00",
+      "ruby_red": "#D90429"
+    },
+    "text": {
+      "main": "#FDF0D5",
+      "muted": "#D4A373",
+      "accent": "#FFD700"
+    },
+    "game_elements": {
+      "enemy_banned": "#8B0000",
+      "enemy_stamp": "#FF0000",
+      "collectible_glow": "#F4A261",
+      "collectible_emerald": "#2A9D8F",
+      "collectible_crimson": "#E63946"
+    }
+  },
+  "typography": {
+    "fonts": {
+      "heading": "Press Start 2P",
+      "body": "VT323",
+      "ui": "Space Mono"
+    },
+    "sizes": {
+      "h1": "text-4xl md:text-5xl",
+      "h2": "text-2xl md:text-3xl",
+      "hud_score": "text-xl",
+      "body": "text-base",
+      "small_labels": "text-sm tracking-[0.2em] uppercase"
+    },
+    "styles": {
+      "hud_text": "text-accent font-heading drop-shadow-[0_4px_4px_rgba(0,0,0,0.8)]",
+      "button_text": "text-main font-heading uppercase tracking-widest"
+    }
+  },
+  "layout_and_spacing": {
+    "screens": {
+      "splash": "flex-col items-center justify-center p-8 bg-background-base",
+      "character_select": "grid grid-cols-2 gap-8 p-6 items-center",
+      "gameplay": "relative w-full h-full overflow-hidden",
+      "game_over": "flex-col items-center justify-center bg-background-overlay backdrop-blur-sm z-50 absolute inset-0"
+    },
+    "hud": {
+      "container": "absolute top-0 left-0 w-full flex justify-between p-6 z-40",
+      "score": "flex flex-col items-end",
+      "lives": "flex gap-2 items-center"
+    },
+    "controls": {
+      "touch_zones": "absolute bottom-0 w-full h-[50vh] flex z-30",
+      "left_zone": "w-1/2 h-full active:bg-white/5",
+      "right_zone": "w-1/2 h-full active:bg-white/5"
+    }
+  },
+  "visual_elements": {
+    "characters": {
+      "male_librarian": {
+        "description": "Warm brown skin tone sprite. Features a tapered fade or short locs, retro thick-rimmed glasses, a yellow argyle cardigan over a button-up shirt, and a bold red bowtie. Runs while pushing a golden vintage book cart.",
+        "animations": ["idle_adjust_glasses", "run_cycle", "jump_arc", "damage_recoil"]
+      },
+      "female_librarian": {
+        "description": "Warm brown skin tone sprite. Features a glorious natural afro or neatly tied protective braids, cat-eye glasses, an emerald twinset sweater, and a flowing skirt. Carries a glowing stack of books that trail pixel-dust.",
+        "animations": ["idle_read_book", "run_cycle", "jump_arc", "damage_recoil"]
+      }
+    },
+    "enemies": {
+      "book_banners": {
+        "description": "Sinister, blocky book-shaped enemies in charred black and dark greys. They have glowing red, angry pixel eyes. Across their covers is a massive, pulsing pixelated 'BANNED' stamp in bright red. Some variants carry tiny pixel torches.",
+        "defeat_animation": "Squishes flat into a cloud of burnt paper particles before disappearing."
+      }
+    },
+    "collectibles": {
+      "classic_literature": {
+        "description": "Glowing pixel-art books celebrating Black literature. They bob up and down and emit a golden/orange pixel aura. Visual cues: Dark Red cover ('Beloved'), Emerald Green ('Invisible Man'), Deep Yellow ('Their Eyes Were Watching God').",
+        "collect_animation": "Bursts into tiny glowing stars/sparks with a crisp 8-bit 'chime' sound."
+      }
+    },
+    "background_parallax": {
+      "layer_1_far": "Dark mahogany arches and gothic library architecture in deep shadows.",
+      "layer_2_mid": "Endless rows of vintage bookshelves with colorful book spines. Subtle floating dust particles.",
+      "layer_3_near": "Wooden card catalogs with brass handles and warm yellow reading lamps casting directional light.",
+      "layer_4_floor": "Polished wooden floorboards with a subtle reflection of the running character."
+    },
+    "ui_components": {
+      "buttons": "Chunky arcade-style boxes. 4px solid borders (color: #D4A373), inner shadow to simulate depth. On press, translate-y-1 and invert colors.",
+      "panels": "Dark brown background with 2px gold border, sharp corners. Inspired by old library signage."
+    }
+  },
+  "motion_and_interactions": {
+    "animations": {
+      "parallax_scroll": "Continuous horizontal translation, speed multipliers: L1(0.1x), L2(0.4x), L3(0.7x), Floor(1.0x).",
+      "collectible_idle": "Smooth sine-wave vertical bobbing (+/- 5px).",
+      "ui_pulse": "Score text and 'TAP TO START' pulse opacity from 100% to 50% every 1s."
+    },
+    "audio_cues": {
+      "jump": "Classic 8-bit short sweep up.",
+      "collect": "High-pitched, warm 8-bit coin/chime sound.",
+      "stomp": "Bass-heavy 8-bit crunch/thud.",
+      "game_over": "Descending minor scale in square wave."
+    }
+  },
+  "media_urls": [
+    {
+      "category": "background_texture",
+      "description": "Tall vintage bookshelves filled with books in a grand library.",
+      "url": "https://images.unsplash.com/photo-1771647287015-f30dbb239646?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1NzZ8MHwxfHNlYXJjaHwyfHx2aW50YWdlJTIwbGlicmFyeSUyMGJvb2tzaGVsZnxlbnwwfHx8fDE3Nzc1MDAxNzJ8MA&ixlib=rb-4.1.0&q=85"
+    },
+    {
+      "category": "background_texture",
+      "description": "Brown wooden bookshelf perfect for parallax layer 2.",
+      "url": "https://images.unsplash.com/photo-1603058817990-2b9a9abbce86?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1NzZ8MHwxfHNlYXJjaHwxfHx2aW50YWdlJTIwbGlicmFyeSUyMGJvb2tzaGVsZnxlbnwwfHx8fDE3Nzc1MDAxNzJ8MA&ixlib=rb-4.1.0&q=85"
+    },
+    {
+      "category": "ui_texture",
+      "description": "High-resolution vintage parchment texture, ideal for UI panels and menus.",
+      "url": "https://images.pexels.com/photos/235985/pexels-photo-235985.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+    },
+    {
+      "category": "ui_texture",
+      "description": "High-resolution tattered paper texture for game over or high score screens.",
+      "url": "https://images.pexels.com/photos/5102226/pexels-photo-5102226.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+    },
+    {
+      "category": "reference",
+      "description": "Close-up of three vintage hardbound books stacked, showing aged textures for collectible sprite reference.",
+      "url": "https://images.pexels.com/photos/7682364/pexels-photo-7682364.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+    },
+    {
+      "category": "reference",
+      "description": "Stack of vintage books with worn pages and soft lighting.",
+      "url": "https://images.pexels.com/photos/5218386/pexels-photo-5218386.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+    }
+  ],
+  "accessibility_and_testing": {
+    "color_contrast": "Ensure HUD text (#FFD700) over dark backgrounds maintains > 4.5:1 ratio. Add text shadow drop-shadow-[0_4px_4px_rgba(0,0,0,0.8)] to guarantee legibility over moving parallax layers.",
+    "testing_attributes": {
+      "character_select_male": "data-testid='select-male-librarian-button'",
+      "character_select_female": "data-testid='select-female-librarian-button'",
+      "play_button": "data-testid='start-game-button'",
+      "pause_button": "data-testid='pause-game-button'",
+      "retry_button": "data-testid='retry-game-button'",
+      "settings_toggle": "data-testid='sound-toggle-button'",
+      "left_move_zone": "data-testid='touch-zone-move'",
+      "right_jump_zone": "data-testid='touch-zone-jump'"
+    }
+  }
+}
