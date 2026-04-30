@@ -117,7 +117,7 @@ const isBossLevel = (level: number) => level % 5 === 0;
 // Per-level score targets (null = boss fight).
 const getLevelTarget = (level: number): number => {
   if (isBossLevel(level)) return 0;
-  const table = [200, 300, 500, 750, 0, 1100, 1500, 2000, 2500, 0, 3100, 3800, 4600, 5400, 0];
+  const table = [150, 300, 500, 750, 0, 1100, 1500, 2000, 2500, 0, 3100, 3800, 4600, 5400, 0];
   return table[level - 1] ?? 150 + 300 * (level - 1);
 };
 
@@ -508,8 +508,8 @@ export default function GameScreen() {
   };
 
   const spawnNormal = () => {
-    // Enforce minimum spawn gap (prevents unavoidable walls); Level 1 gets extra breathing room
-    const minGapPx = 140 + speed.current * 6 + (levelRef.current === 1 ? 120 : 0);
+    // Enforce minimum spawn gap (prevents unavoidable walls)
+    const minGapPx = 140 + speed.current * 6;
     if (scrollX.current - lastSpawnTickRef.current < minGapPx) return;
     lastSpawnTickRef.current = scrollX.current;
 
