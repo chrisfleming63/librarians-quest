@@ -688,6 +688,7 @@ export default function GameScreen() {
 
     if (overlap && bossInvincible.current <= 0) {
       const top = bossY.current;
+      // Stomp detection works in ALL boss phases — player can always safely jump on boss's head
       if (velocityY.current > 0 && playerBottom - velocityY.current <= top + 20) {
         // hit boss
         bossHpRef.current -= 1;
@@ -700,7 +701,10 @@ export default function GameScreen() {
         if (bossHpRef.current <= 0) {
           defeatBoss();
         }
-      } else {
+      } else if (bossPhaseRef.current === "dash") {
+        // Only deal contact damage when the boss is actively attacking (dashing).
+        // During pace / telegraph / retreat phases, the player can safely
+        // approach and position without taking damage.
         takeDamage(PLAYER_X, playerY.current);
       }
     }
