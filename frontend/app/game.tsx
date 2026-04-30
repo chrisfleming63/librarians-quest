@@ -591,19 +591,27 @@ export default function GameScreen() {
       bossY.current = GROUND_Y - BOSS_H;
       bossVy.current = 0;
     }
+    // Horizontal pacing — boss moves forward/backward so player can stomp it
+    const BOSS_MIN_X = 50;
+    const BOSS_MAX_X = SCREEN_W - BOSS_W - 30;
+    bossX.current += bossDir.current * 1.6;
+    if (bossX.current >= BOSS_MAX_X) { bossX.current = BOSS_MAX_X; bossDir.current = -1; }
+    if (bossX.current <= BOSS_MIN_X) { bossX.current = BOSS_MIN_X; bossDir.current = 1; }
     // Decrease attack timer
     bossAttackTimer.current -= 1;
     if (bossInvincible.current > 0) bossInvincible.current -= 1;
 
     const attack = getBossAttack(levelRef.current);
+    // Sign projectile y: 60% LOW (must jump) / 40% HIGH (passes overhead unless jumping)
+    const signY = () => (Math.random() < 0.6 ? GROUND_Y - 36 : GROUND_Y - 175);
 
     if (bossAttackTimer.current <= 0) {
       if (attack === "signs") {
-        // throw a sign
+        // throw a sign at varying height
         entities.current.push({
           id: nextId(),
           x: bossX.current,
-          y: bossY.current + 60,
+          y: signY(),
           kind: "sign",
           signText: "BANNED",
         });
@@ -626,11 +634,11 @@ export default function GameScreen() {
         // teleport
         const newX = 160 + Math.random() * (SCREEN_W - 300);
         bossX.current = Math.min(SCREEN_W - BOSS_W - 20, Math.max(SCREEN_W * 0.4, newX));
-        // throw sign too
+        // throw sign too at varying height
         entities.current.push({
           id: nextId(),
           x: bossX.current,
-          y: bossY.current + 60,
+          y: signY(),
           kind: "sign",
           signText: "CENSOR",
         });
@@ -711,6 +719,7 @@ export default function GameScreen() {
       bossVy.current = 0;
       bossAttackTimer.current = 120;
       bossInvincible.current = 0;
+      bossDir.current = -1; // start moving toward player
     } else {
       bossActiveRef.current = false;
     }
@@ -1173,6 +1182,30 @@ const styles = StyleSheet.create({
     borderWidth: 4,
     alignItems: "center",
     justifyContent: "center",
+    zIndex: 40,
+  },
+  throwFabText: { fontSize: 28, lineHeight: 30 },
+  throwFabAmmo: { color: COLORS.gold, fontSize: 12, fontWeight: "900", letterSpacing: 1, marginTop: -2 },
+});
+ontWeight: "900", fontSize: 16, letterSpacing: 2 },
+  overlayBtnTextAlt: { color: COLORS.parchment, fontWeight: "900", fontSize: 14, letterSpacing: 2 },
+  throwFab: {
+    position: "absolute",
+    right: 20,
+    bottom: 28,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: COLORS.bgSurface,
+    borderWidth: 4,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 40,
+  },
+  throwFabText: { fontSize: 28, lineHeight: 30 },
+  throwFabAmmo: { color: COLORS.gold, fontSize: 12, fontWeight: "900", letterSpacing: 1, marginTop: -2 },
+});
+fyContent: "center",
     zIndex: 40,
   },
   throwFabText: { fontSize: 28, lineHeight: 30 },
