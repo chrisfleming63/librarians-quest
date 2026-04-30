@@ -211,6 +211,8 @@ export default function GameScreen() {
   const bossAttackTimer = useRef(90);
   const bossInvincible = useRef(0);
   const bossDir = useRef(1); // for teleport/sway
+  const bossPhaseRef = useRef<"pace" | "telegraph" | "dash" | "retreat">("pace");
+  const bossPhaseTimerRef = useRef(180);
 
   // Exposed state for render
   const [score, setScore] = useState(0);
@@ -591,19 +593,49 @@ export default function GameScreen() {
       bossY.current = GROUND_Y - BOSS_H;
       bossVy.current = 0;
     }
-    // Horizontal pacing — boss moves forward/backward so player can stomp it
+    // Boss phase machine: pace → telegraph → dash → retreat → pace
     const BOSS_MIN_X = 22;
     const BOSS_MAX_X = SCREEN_W - BOSS_W - 30;
-    bossX.current += bossDir.current * 2.2;
-    if (bossX.current >= BOSS_MAX_X) { bossX.current = BOSS_MAX_X; bossDir.current = -1; }
-    if (bossX.current <= BOSS_MIN_X) { bossX.current = BOSS_MIN_X; bossDir.current = 1; }
-    // Decrease attack timer
-    bossAttackTimer.current -= 1;
+    const DASH_TARGET_X = 30;
+    bossPhaseTimerRef.current -= 1;
+    if (bossPhaseRef.current === "pace") {
+      bossX.current += bossDir.current * 2.2;
+      if (bossX.current >= BOSS_MAX_X) { bossX.current = BOSS_MAX_X; bossDir.current = -1; }
+      if (bossX.current <= BOSS_MIN_X) { bossX.current = BOSS_MIN_X; bossDir.current = 1; }
+      if (bossPhaseTimerRef.current <= 0) {
+        bossPhaseRef.current = "telegraph";
+        bossPhaseTimerRef.current = 45;
+        addFloat(bossX.current + 30, bossY.current - 18, "⚠ DASH!", COLORS.ruby);
+      }
+    } else if (bossPhaseRef.current === "telegraph") {
+      // freeze in place, brief warning window for the player to react
+      if (bossPhaseTimerRef.current <= 0) {
+        bossPhaseRef.current = "dash";
+        bossPhaseTimerRef.current = 35;
+      }
+    } else if (bossPhaseRef.current === "dash") {
+      bossX.current -= 6;
+      if (bossX.current <= DASH_TARGET_X || bossPhaseTimerRef.current <= 0) {
+        bossX.current = Math.max(DASH_TARGET_X, bossX.current);
+        bossPhaseRef.current = "retreat";
+        bossPhaseTimerRef.current = 80;
+      }
+    } else if (bossPhaseRef.current === "retreat") {
+      bossX.current += 3;
+      if (bossX.current >= BOSS_MAX_X || bossPhaseTimerRef.current <= 0) {
+        bossX.current = Math.min(BOSS_MAX_X, bossX.current);
+        bossPhaseRef.current = "pace";
+        bossPhaseTimerRef.current = 180;
+        bossDir.current = -1;
+      }
+    }
+    // Decrease attack timer (only counts down during pace — no attacks while dashing/telegraphing)
+    if (bossPhaseRef.current === "pace") bossAttackTimer.current -= 1;
     if (bossInvincible.current > 0) bossInvincible.current -= 1;
 
     const attack = getBossAttack(levelRef.current);
-    // Sign projectile y: 60% LOW (must jump) / 40% HIGH (passes above standing, hits jumper)
-    const signY = () => (Math.random() < 0.6 ? GROUND_Y - 28 : GROUND_Y - 105);
+    // All projectiles roll along the ground (low, jumpable)
+    const signY = () => GROUND_Y - 28;
 
     if (bossAttackTimer.current <= 0) {
       if (attack === "signs") {
@@ -720,6 +752,8 @@ export default function GameScreen() {
       bossAttackTimer.current = 120;
       bossInvincible.current = 0;
       bossDir.current = -1; // start moving toward player
+      bossPhaseRef.current = "pace";
+      bossPhaseTimerRef.current = 180;
     } else {
       bossActiveRef.current = false;
     }
