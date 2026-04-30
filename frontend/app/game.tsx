@@ -32,6 +32,12 @@ const SIGN_H = 28;
 const BOSS_W = 120;
 const BOSS_H = 170;
 const BOSS_X = SCREEN_W - BOSS_W - 30;
+const PLATFORM_H = 18;
+const OBSTACLE_W = 40;
+const OBSTACLE_H = 44;
+const POWERUP_SIZE = 38;
+const BOOK_PROJ_SIZE = 24;
+const BOOK_PROJ_VX = 14;
 const TICK_MS = 33;
 
 const PROTEST_SIGNS = ["BANNED", "BAN BOOKS", "CENSOR", "NO READ", "BURN IT", "SILENCE"];
@@ -140,11 +146,13 @@ type Entity = {
   x: number;
   y: number;
   vy?: number;
-  kind: "book" | "banner" | "sign" | "shockwave";
+  kind: "book" | "banner" | "sign" | "shockwave" | "platform" | "obstacle" | "powerup" | "playerBook";
   color?: string;
   title?: string;
   variant?: number;
   signText?: string;
+  w?: number;
+  rot?: number;
   dead?: boolean;
   stomped?: boolean;
 };
@@ -203,6 +211,8 @@ export default function GameScreen() {
   const [levelComplete, setLevelComplete] = useState(false);
   const [showIntro, setShowIntro] = useState(true);
   const [bossHp, setBossHp] = useState(0);
+  const [ammo, setAmmo] = useState(0);
+  const ammoRef = useRef(0);
 
   const [floatTexts, setFloatTexts] = useState<{ id: number; x: number; y: number; text: string; color: string; ttl: number }[]>([]);
   const floatTextsRef = useRef<typeof floatTexts>([]);
@@ -277,11 +287,35 @@ export default function GameScreen() {
 
   const stepFrame = () => {
     // Player physics
+    const prevY = playerY.current;
     velocityY.current += GRAVITY;
     playerY.current += velocityY.current;
+
+    // Platform-landing check (only when descending)
+    let landedOnPlatform = false;
+    if (velocityY.current >= 0) {
+      for (const e of entities.current) {
+        if (e.kind !== "platform" || e.dead) continue;
+        const pw = e.w || 90;
+        if (PLAYER_X + PLAYER_W > e.x + 4 && PLAYER_X < e.x + pw - 4) {
+          const prevBottom = prevY + PLAYER_H;
+          const newBottom = playerY.current + PLAYER_H;
+          if (prevBottom <= e.y + 4 && newBottom >= e.y) {
+            playerY.current = e.y - PLAYER_H;
+            velocityY.current = 0;
+            landedOnPlatform = true;
+            break;
+          }
+        }
+      }
+    }
+
     if (playerY.current >= GROUND_Y - PLAYER_H) {
       playerY.current = GROUND_Y - PLAYER_H;
       velocityY.current = 0;
+      onGround.current = true;
+      jumpsUsed.current = 0;
+    } else if (landedOnPlatform) {
       onGround.current = true;
       jumpsUsed.current = 0;
     } else {
@@ -303,6 +337,40 @@ export default function GameScreen() {
       if (e.dead) continue;
 
       // Movement
+      if (e.kind === "playerBook") {
+        e.x += BOOK_PROJ_VX;
+        e.rot = (e.rot || 0) + 28;
+        if (e.x > SCREEN_W + 50) e.dead = true;
+        // Collide with banners and boss
+        for (const t of entities.current) {
+          if (t === e || t.dead) continue;
+          if (t.kind === "banner" && !t.stomped) {
+            const td = entityDims(t);
+            if (e.x < t.x + td.w && e.x + BOOK_PROJ_SIZE > t.x && e.y < t.y + td.h && e.y + BOOK_PROJ_SIZE > t.y) {
+              t.dead = true;
+              e.dead = true;
+              scoreRef.current += 30;
+              setScore(scoreRef.current);
+              addFloat(t.x, t.y, "+30 BOOK!", COLORS.gold);
+              playSfx(hitPlayer);
+              break;
+            }
+          }
+        }
+        if (!e.dead && bossActiveRef.current && bossInvincible.current <= 0) {
+          if (e.x < bossX.current + BOSS_W && e.x + BOOK_PROJ_SIZE > bossX.current && e.y < bossY.current + BOSS_H && e.y + BOOK_PROJ_SIZE > bossY.current) {
+            bossHpRef.current -= 1;
+            setBossHp(bossHpRef.current);
+            bossInvincible.current = 30;
+            e.dead = true;
+            addFloat(bossX.current, bossY.current, "-1 HP", COLORS.gold);
+            playSfx(hitPlayer);
+            if (bossHpRef.current <= 0) defeatBoss();
+          }
+        }
+        continue;
+      }
+
       if (e.kind === "sign") {
         e.x -= 9;
       } else if (e.kind === "shockwave") {
@@ -310,6 +378,9 @@ export default function GameScreen() {
       } else {
         e.x -= speed.current;
       }
+
+      // Skip player-collision for platforms (handled in physics)
+      if (e.kind === "platform") continue;
 
       if (!e.stomped) {
         const dims = entityDims(e);
@@ -350,6 +421,10 @@ export default function GameScreen() {
     if (e.kind === "book") return { w: BOOK_SIZE, h: BOOK_SIZE };
     if (e.kind === "banner") return { w: BANNER_W, h: BANNER_H };
     if (e.kind === "sign") return { w: SIGN_W, h: SIGN_H };
+    if (e.kind === "platform") return { w: e.w || 90, h: PLATFORM_H };
+    if (e.kind === "obstacle") return { w: OBSTACLE_W, h: OBSTACLE_H };
+    if (e.kind === "powerup") return { w: POWERUP_SIZE, h: POWERUP_SIZE };
+    if (e.kind === "playerBook") return { w: BOOK_PROJ_SIZE, h: BOOK_PROJ_SIZE };
     return { w: 60, h: 16 };
   };
 
@@ -415,10 +490,32 @@ export default function GameScreen() {
     const variant = Math.floor(Math.random() * 4);
     const sign = PROTEST_SIGNS[Math.floor(Math.random() * PROTEST_SIGNS.length)];
 
-    if (r < 0.4) {
+    if (r < 0.05) {
+      // POWER-UP (rare): glowing book stack at jumpable height
+      entities.current.push({
+        id: nextId(), x: startX, y: GROUND_Y - POWERUP_SIZE - 70, kind: "powerup",
+      });
+    } else if (r < 0.18) {
+      // PLATFORM with books on top
+      const platW = 100 + Math.random() * 70;
+      const platY = GROUND_Y - 95 - Math.random() * 55;
+      entities.current.push({ id: nextId(), x: startX, y: platY, kind: "platform", w: platW });
+      // Books on platform
+      const bookCount = 1 + Math.floor(Math.random() * 2);
+      for (let i = 0; i < bookCount; i++) {
+        entities.current.push({
+          id: nextId(), x: startX + 20 + i * 36, y: platY - BOOK_SIZE - 4, kind: "book",
+          color: BOOK_COLORS[Math.floor(Math.random() * BOOK_COLORS.length)],
+          title: BOOK_TITLES[Math.floor(Math.random() * BOOK_TITLES.length)],
+        });
+      }
+    } else if (r < 0.3 && lvl >= 2) {
+      // OBSTACLE (barricade) — must be jumped over
+      entities.current.push({ id: nextId(), x: startX, y: GROUND_Y - OBSTACLE_H, kind: "obstacle" });
+    } else if (r < 0.55) {
       // protester
       entities.current.push({ id: nextId(), x: startX, y: GROUND_Y - BANNER_H, kind: "banner", variant, signText: sign });
-    } else if (r < 0.8) {
+    } else if (r < 0.85) {
       // book
       const t = Math.random();
       let y: number;
@@ -437,13 +534,11 @@ export default function GameScreen() {
         id: nextId(), x: startX + 10, y: GROUND_Y - BANNER_H - BOOK_SIZE - 30, kind: "book",
         color: BOOK_COLORS[Math.floor(Math.random() * BOOK_COLORS.length)],
       });
-      // L3+: sometimes add a projectile sign at mid height
       if (lvl >= 3 && Math.random() < 0.35) {
         entities.current.push({ id: nextId(), x: startX + 250, y: GROUND_Y - BANNER_H - 20, kind: "sign", signText: "BAN" });
       }
     }
 
-    // L6+: extra stacked protester
     if (lvl >= 6 && Math.random() < 0.18) {
       entities.current.push({ id: nextId(), x: startX + 40, y: GROUND_Y - BANNER_H * 2 + 6, kind: "banner", variant: (variant + 1) % 4, signText: "NO READ" });
     }
@@ -598,6 +693,22 @@ export default function GameScreen() {
     }
   };
 
+  const throwBook = () => {
+    if (ammoRef.current <= 0) return;
+    if (pausedRef.current || gameOverRef.current || levelCompleteRef.current || showIntro) return;
+    ammoRef.current -= 1;
+    setAmmo(ammoRef.current);
+    entities.current.push({
+      id: nextId(),
+      x: PLAYER_X + PLAYER_W,
+      y: playerY.current + PLAYER_H * 0.35,
+      kind: "playerBook",
+      color: BOOK_COLORS[Math.floor(Math.random() * BOOK_COLORS.length)],
+      rot: 0,
+    });
+    playSfx(jumpPlayer);
+  };
+
   const handleGameOver = async () => {
     gameOverRef.current = true;
     setGameOver(true);
@@ -641,6 +752,8 @@ export default function GameScreen() {
     setLevelComplete(false);
     setBossHp(0);
     setShowIntro(true);
+    ammoRef.current = 0;
+    setAmmo(0);
     if (!mutedRef.current) { try { bgmPlayer.seekTo(0); bgmPlayer.play(); } catch {} }
   };
 
@@ -725,6 +838,48 @@ export default function GameScreen() {
             <View key={e.id} style={{ position: "absolute", left: e.x, top: e.y, width: 60, height: 16, borderRadius: 30, backgroundColor: COLORS.ruby, opacity: 0.6 }} />
           );
         }
+        if (e.kind === "platform") {
+          const w = e.w || 90;
+          return (
+            <View key={e.id} style={{ position: "absolute", left: e.x, top: e.y, width: w, height: PLATFORM_H + 6 }}>
+              <View style={{ position: "absolute", left: 0, top: 0, width: w, height: PLATFORM_H, backgroundColor: theme.shelfMid, borderWidth: 2, borderColor: "#000" }} />
+              <View style={{ position: "absolute", left: 0, top: 0, width: w, height: 3, backgroundColor: theme.accent, opacity: 0.7 }} />
+              <View style={{ position: "absolute", left: 6, top: PLATFORM_H, width: 4, height: 6, backgroundColor: theme.shelfBack }} />
+              <View style={{ position: "absolute", right: 6, top: PLATFORM_H, width: 4, height: 6, backgroundColor: theme.shelfBack }} />
+            </View>
+          );
+        }
+        if (e.kind === "obstacle") {
+          return (
+            <View key={e.id} style={{ position: "absolute", left: e.x, top: e.y, width: OBSTACLE_W, height: OBSTACLE_H }}>
+              <View style={{ position: "absolute", left: 0, bottom: 0, width: OBSTACLE_W, height: OBSTACLE_H * 0.55, backgroundColor: "#6B3F1F", borderWidth: 2, borderColor: "#000" }} />
+              <View style={{ position: "absolute", left: 2, top: 4, width: OBSTACLE_W - 4, height: 4, backgroundColor: "#3A1F12", transform: [{ rotate: "20deg" }] }} />
+              <View style={{ position: "absolute", left: 2, top: 4, width: OBSTACLE_W - 4, height: 4, backgroundColor: "#3A1F12", transform: [{ rotate: "-20deg" }] }} />
+              <View style={{ position: "absolute", left: 0, top: OBSTACLE_H * 0.4, width: OBSTACLE_W, height: 4, backgroundColor: COLORS.gold }} />
+              <View style={{ position: "absolute", left: 0, top: OBSTACLE_H * 0.5, width: OBSTACLE_W, height: 4, backgroundColor: "#000" }} />
+            </View>
+          );
+        }
+        if (e.kind === "powerup") {
+          return (
+            <View key={e.id} style={{ position: "absolute", left: e.x, top: e.y, width: POWERUP_SIZE, height: POWERUP_SIZE }}>
+              <View style={{ position: "absolute", left: -8, top: -8, width: POWERUP_SIZE + 16, height: POWERUP_SIZE + 16, backgroundColor: "rgba(255, 215, 0, 0.35)", borderRadius: POWERUP_SIZE }} />
+              <View style={{ position: "absolute", left: 4, top: 4, width: POWERUP_SIZE - 8, height: 9, backgroundColor: COLORS.bookRed, borderWidth: 1, borderColor: "#000" }} />
+              <View style={{ position: "absolute", left: 4, top: 14, width: POWERUP_SIZE - 8, height: 9, backgroundColor: COLORS.bookGreen, borderWidth: 1, borderColor: "#000" }} />
+              <View style={{ position: "absolute", left: 4, top: 24, width: POWERUP_SIZE - 8, height: 9, backgroundColor: COLORS.bookYellow, borderWidth: 1, borderColor: "#000" }} />
+              <Text style={{ position: "absolute", right: -4, top: -10, fontSize: 18, color: COLORS.gold }}>★</Text>
+            </View>
+          );
+        }
+        if (e.kind === "playerBook") {
+          return (
+            <View key={e.id} style={{ position: "absolute", left: e.x, top: e.y, width: BOOK_PROJ_SIZE, height: BOOK_PROJ_SIZE, transform: [{ rotate: `${e.rot || 0}deg` }] }}>
+              <View style={{ width: BOOK_PROJ_SIZE, height: BOOK_PROJ_SIZE, backgroundColor: e.color || COLORS.bookRed, borderWidth: 2, borderColor: "#000" }} />
+              <View style={{ position: "absolute", left: 0, top: 0, width: 3, height: BOOK_PROJ_SIZE, backgroundColor: COLORS.gold }} />
+              <View style={{ position: "absolute", left: 6, top: BOOK_PROJ_SIZE * 0.35, width: BOOK_PROJ_SIZE - 10, height: 2, backgroundColor: COLORS.gold }} />
+            </View>
+          );
+        }
         return null;
       })}
 
@@ -761,6 +916,9 @@ export default function GameScreen() {
             ))}
           </View>
           <View style={{ flexDirection: "row", gap: 6, marginTop: 8 }}>
+            <TouchableOpacity testID="throw-book-button" onPress={throwBook} style={[styles.pauseBtn, { opacity: ammo > 0 ? 1 : 0.4, borderColor: ammo > 0 ? COLORS.gold : COLORS.muted }]} activeOpacity={0.7}>
+              <Text style={[styles.pauseTxt, { fontSize: 14 }]}>📚 {ammo}</Text>
+            </TouchableOpacity>
             <TouchableOpacity testID="mute-toggle-button" onPress={toggleMute} style={styles.pauseBtn} activeOpacity={0.7}>
               <Text style={styles.pauseTxt}>{muted ? "🔇" : "🔊"}</Text>
             </TouchableOpacity>
