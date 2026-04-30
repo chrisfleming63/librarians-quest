@@ -99,8 +99,6 @@ export function BannerEnemy({ width, height, variant = 0, sign = "BANNED" }: Spr
   const signStroke = "#1A0F08";
   return (
     <View style={{ width, height }} testID="sprite-protester">
-      {/* Visibility silhouette — high-contrast halo so the enemy is always readable on any theme */}
-      <View style={{ position: "absolute", left: -2, top: height * 0.3, width: width + 4, height: height * 0.72, backgroundColor: "rgba(0, 0, 0, 0.55)", borderWidth: 2, borderColor: COLORS.gold, borderRadius: 4 }} />
       {/* Picket sign held up */}
       <View style={{ position: "absolute", left: width * 0.05, top: 0, width: width * 0.9, height: height * 0.3, backgroundColor: signBg, borderWidth: 2, borderColor: signStroke, justifyContent: "center", alignItems: "center", transform: [{ rotate: "-6deg" }] }}>
         <Text style={{ color: COLORS.ruby, fontSize: Math.max(7, width * 0.18), fontWeight: "900", letterSpacing: 1 }}>{sign}</Text>

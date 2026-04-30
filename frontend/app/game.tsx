@@ -211,7 +211,6 @@ export default function GameScreen() {
   const bossAttackTimer = useRef(90);
   const bossInvincible = useRef(0);
   const bossDir = useRef(1); // for teleport/sway
-  const celebratingRef = useRef(false);
 
   // Exposed state for render
   const [score, setScore] = useState(0);
@@ -223,7 +222,6 @@ export default function GameScreen() {
   const [levelComplete, setLevelComplete] = useState(false);
   const [showIntro, setShowIntro] = useState(true);
   const [bossHp, setBossHp] = useState(0);
-  const [celebrating, setCelebrating] = useState(false);
   const [ammo, setAmmo] = useState(0);
   const ammoRef = useRef(0);
 
@@ -499,7 +497,6 @@ export default function GameScreen() {
 
   const takeDamage = (x: number, y: number) => {
     if (invincibleFrames.current > 0) return;
-    if (celebratingRef.current) return;
     livesRef.current -= 1;
     setLives(livesRef.current);
     invincibleFrames.current = 45;
@@ -587,7 +584,6 @@ export default function GameScreen() {
 
   // === Boss level ===
   const stepBoss = () => {
-    if (celebratingRef.current) return; // freeze boss + projectiles during defeat celebration
     // Boss physics (gravity + occasional jump)
     bossVy.current += GRAVITY * 0.9;
     bossY.current += bossVy.current;
@@ -684,21 +680,8 @@ export default function GameScreen() {
     scoreRef.current += bonus;
     setScore(scoreRef.current);
     addFloat(bossX.current, bossY.current, `+${bonus} BOSS`, COLORS.gold);
-    // Celebration window — freeze damage + boss, play victory chime, then advance
-    celebratingRef.current = true;
-    setCelebrating(true);
-    invincibleFrames.current = 9999;
-    try { bgmPlayer.pause(); } catch {}
-    playSfx(collectPlayer);
-    setTimeout(() => playSfx(collectPlayer), 350);
-    setTimeout(() => playSfx(collectPlayer), 700);
-    setTimeout(() => {
-      celebratingRef.current = false;
-      setCelebrating(false);
-      invincibleFrames.current = 0;
-      bossActiveRef.current = false;
-      triggerLevelComplete();
-    }, 2000);
+    bossActiveRef.current = false;
+    triggerLevelComplete();
   };
 
   const triggerLevelComplete = () => {
@@ -1061,14 +1044,6 @@ export default function GameScreen() {
           <TouchableOpacity testID="quit-to-menu-button-2" style={[styles.overlayBtn, styles.overlayBtnAlt]} onPress={goHome} activeOpacity={0.8}>
             <Text style={styles.overlayBtnTextAlt}>◀  MAIN MENU</Text>
           </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Boss-defeat celebration overlay */}
-      {celebrating && (
-        <View style={[styles.overlay, { backgroundColor: "rgba(255, 215, 0, 0.18)", zIndex: 60 }]} testID="boss-defeat-overlay" pointerEvents="none">
-          <Text style={[styles.overlayTitle, { color: COLORS.gold, fontSize: 42 }]}>★ BOSS ★</Text>
-          <Text style={[styles.overlayTitle, { color: COLORS.neonOrange, fontSize: 28, marginTop: -4 }]}>DEFEATED!</Text>
         </View>
       )}
 
