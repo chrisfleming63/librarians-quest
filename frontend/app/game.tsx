@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useAudioPlayer, setAudioModeAsync } from "expo-audio";
 import { COLORS, BOOK_TITLES } from "../src/theme";
 import { MaleLibrarian, FemaleLibrarian, BannerEnemy, CollectibleBook } from "../src/Sprites";
 
@@ -70,6 +71,52 @@ export default function GameScreen() {
   const runningRef = useRef(true);
   const pausedRef = useRef(false);
   const gameOverRef = useRef(false);
+
+  // --- AUDIO ---
+  const jumpPlayer = useAudioPlayer(require("../assets/sounds/jump.wav"));
+  const hitPlayer = useAudioPlayer(require("../assets/sounds/hit.wav"));
+  const collectPlayer = useAudioPlayer(require("../assets/sounds/collect.wav"));
+  const bgmPlayer = useAudioPlayer(require("../assets/sounds/bgm.wav"));
+  const [muted, setMuted] = useState(false);
+  const mutedRef = useRef(false);
+
+  // Configure audio + start BGM loop
+  useEffect(() => {
+    (async () => {
+      try {
+        await setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: false });
+      } catch {}
+      try {
+        bgmPlayer.loop = true;
+        bgmPlayer.volume = 0.35;
+        jumpPlayer.volume = 0.6;
+        hitPlayer.volume = 0.7;
+        collectPlayer.volume = 0.55;
+        bgmPlayer.play();
+      } catch {}
+    })();
+    return () => {
+      try { bgmPlayer.pause(); } catch {}
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const playSfx = (p: ReturnType<typeof useAudioPlayer>) => {
+    if (mutedRef.current) return;
+    try {
+      p.seekTo(0);
+      p.play();
+    } catch {}
+  };
+
+  const toggleMute = () => {
+    mutedRef.current = !mutedRef.current;
+    setMuted(mutedRef.current);
+    try {
+      if (mutedRef.current) bgmPlayer.pause();
+      else bgmPlayer.play();
+    } catch {}
+  };
 
   const [score, setScore] = useState(0);
   const [lives, setLives] = useState(3);
@@ -154,6 +201,7 @@ export default function GameScreen() {
             scoreRef.current += 10;
             setScore(scoreRef.current);
             addFloat(e.x, e.y, "+10", COLORS.gold);
+            playSfx(collectPlayer);
           } else if (e.kind === "banner") {
             // Check stomp: player coming down onto banner
             const playerBottom = playerRect.y + playerRect.h;
@@ -166,6 +214,7 @@ export default function GameScreen() {
               addFloat(e.x, e.y, "STOMP +50", COLORS.neonOrange);
               velocityY.current = -12; // bounce
               onGround.current = false;
+              playSfx(hitPlayer);
               // Banner will be cleaned up after short anim
               setTimeout(() => {
                 e.dead = true;
@@ -178,6 +227,7 @@ export default function GameScreen() {
                 invincibleFrames.current = 45;
                 addFloat(playerRect.x, playerRect.y, "OUCH!", COLORS.ruby);
                 e.dead = true;
+                playSfx(hitPlayer);
                 if (livesRef.current <= 0) {
                   handleGameOver();
                 }
@@ -260,15 +310,18 @@ export default function GameScreen() {
       velocityY.current = JUMP_V;
       jumpsUsed.current = 1;
       onGround.current = false;
+      playSfx(jumpPlayer);
     } else if (jumpsUsed.current === 1) {
       velocityY.current = DOUBLE_JUMP_V;
       jumpsUsed.current = 2;
+      playSfx(jumpPlayer);
     }
   };
 
   const handleGameOver = async () => {
     gameOverRef.current = true;
     setGameOver(true);
+    try { bgmPlayer.pause(); } catch {}
     const final = scoreRef.current;
     const saved = await AsyncStorage.getItem("@lq_high_score");
     const prev = saved ? parseInt(saved, 10) || 0 : 0;
@@ -301,11 +354,18 @@ export default function GameScreen() {
     setPaused(false);
     setGameOver(false);
     setFloatTexts([]);
+    if (!mutedRef.current) {
+      try { bgmPlayer.seekTo(0); bgmPlayer.play(); } catch {}
+    }
   };
 
   const togglePause = () => {
     pausedRef.current = !pausedRef.current;
     setPaused(pausedRef.current);
+    try {
+      if (pausedRef.current) bgmPlayer.pause();
+      else if (!mutedRef.current) bgmPlayer.play();
+    } catch {}
   };
 
   const goHome = () => {
@@ -436,14 +496,24 @@ export default function GameScreen() {
               <Text key={i} style={[styles.heart, { opacity: i < lives ? 1 : 0.2 }]}>♥</Text>
             ))}
           </View>
-          <TouchableOpacity
-            testID="pause-game-button"
-            onPress={togglePause}
-            style={styles.pauseBtn}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.pauseTxt}>{paused ? "▶" : "‖"}</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: "row", gap: 6, marginTop: 8 }}>
+            <TouchableOpacity
+              testID="mute-toggle-button"
+              onPress={toggleMute}
+              style={styles.pauseBtn}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.pauseTxt}>{muted ? "🔇" : "🔊"}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              testID="pause-game-button"
+              onPress={togglePause}
+              style={styles.pauseBtn}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.pauseTxt}>{paused ? "▶" : "‖"}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
