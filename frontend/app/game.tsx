@@ -1221,27 +1221,3 @@ const styles = StyleSheet.create({
   throwFabText: { fontSize: 28, lineHeight: 30 },
   throwFabAmmo: { color: COLORS.gold, fontSize: 12, fontWeight: "900", letterSpacing: 1, marginTop: -2 },
 });
-ontWeight: "900", fontSize: 16, letterSpacing: 2 },
-  overlayBtnTextAlt: { color: COLORS.parchment, fontWeight: "900", fontSize: 14, letterSpacing: 2 },
-  throwFab: {
-    position: "absolute",
-    right: 20,
-    bottom: 28,
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: COLORS.bgSurface,
-    borderWidth: 4,
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 40,
-  },
-  throwFabText: { fontSize: 28, lineHeight: 30 },
-  throwFabAmmo: { color: COLORS.gold, fontSize: 12, fontWeight: "900", letterSpacing: 1, marginTop: -2 },
-});
-fyContent: "center",
-    zIndex: 40,
-  },
-  throwFabText: { fontSize: 28, lineHeight: 30 },
-  throwFabAmmo: { color: COLORS.gold, fontSize: 12, fontWeight: "900", letterSpacing: 1, marginTop: -2 },
-});
