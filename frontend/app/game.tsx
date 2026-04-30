@@ -177,6 +177,7 @@ export default function GameScreen() {
   const speed = useRef(getBaseSpeed(1));
   const scrollX = useRef(0);
   const spawnCooldown = useRef(90);
+  const lastSpawnTickRef = useRef(-9999);
   const invincibleFrames = useRef(0);
 
   const scoreRef = useRef(0);
@@ -438,9 +439,9 @@ export default function GameScreen() {
       return;
     }
     if (e.kind === "banner") {
-      const playerBottom = playerRect.y + playerRect.h;
+      const playerCenterY = playerRect.y + PLAYER_H * 0.6;
       const top = e.y;
-      if (velocityY.current > 0 && playerBottom - velocityY.current <= top + 8) {
+      if (velocityY.current >= 0 && playerCenterY < top + 6) {
         e.stomped = true;
         scoreRef.current += 50;
         setScore(scoreRef.current);
@@ -499,6 +500,11 @@ export default function GameScreen() {
   };
 
   const spawnNormal = () => {
+    // Enforce minimum spawn gap (prevents unavoidable walls)
+    const minGapFrames = Math.ceil((140 + speed.current * 6) / Math.max(1, speed.current));
+    if (scrollX.current - lastSpawnTickRef.current < minGapFrames * speed.current) return;
+    lastSpawnTickRef.current = scrollX.current;
+
     const startX = SCREEN_W + 40;
     const lvl = levelRef.current;
     const r = Math.random();
@@ -668,6 +674,7 @@ export default function GameScreen() {
     scrollX.current = 0;
     speed.current = getBaseSpeed(next);
     spawnCooldown.current = 60;
+    lastSpawnTickRef.current = -9999;
     playerY.current = GROUND_Y - PLAYER_H;
     velocityY.current = 0;
     onGround.current = true;
@@ -748,6 +755,7 @@ export default function GameScreen() {
     speed.current = getBaseSpeed(1);
     scrollX.current = 0;
     spawnCooldown.current = 90;
+    lastSpawnTickRef.current = -9999;
     invincibleFrames.current = 0;
     scoreRef.current = 0;
     livesRef.current = 3;
@@ -944,8 +952,8 @@ export default function GameScreen() {
         </View>
       </View>
 
-      {/* Tap zone */}
-      <Pressable testID="touch-zone-jump" onPress={handleJump} style={StyleSheet.absoluteFill} />
+      {/* Tap zone (offset below HUD to avoid overlapping buttons) */}
+      <Pressable testID="touch-zone-jump" onPress={handleJump} style={{ position: "absolute", left: 0, right: 0, top: 130, bottom: 0 }} />
 
       {/* Level intro overlay */}
       {showIntro && !gameOver && (
@@ -1027,8 +1035,8 @@ export default function GameScreen() {
 }
 
 function renderParallaxTiles(offset: number, layer: "far" | "mid" | "near", theme: Theme) {
-  const TILE_W = 140;
-  const tilesCount = Math.ceil(SCREEN_W / TILE_W) + 2;
+  const TILE_W = 200;
+  const tilesCount = Math.ceil(SCREEN_W / TILE_W) + 1;
   const baseOffset = -(offset % TILE_W);
   const tiles = [];
   for (let i = 0; i < tilesCount; i++) {
@@ -1037,7 +1045,7 @@ function renderParallaxTiles(offset: number, layer: "far" | "mid" | "near", them
   return tiles;
 }
 
-function ParallaxTile({ x, layer, theme }: { x: number; layer: "far" | "mid" | "near"; theme: Theme }) {
+function ParallaxTileImpl({ x, layer, theme }: { x: number; layer: "far" | "mid" | "near"; theme: Theme }) {
   if (layer === "far") {
     return (
       <View style={{ position: "absolute", left: x, top: 20, width: 140, height: GROUND_Y - 20 }}>
@@ -1091,6 +1099,8 @@ function ParallaxTile({ x, layer, theme }: { x: number; layer: "far" | "mid" | "
     </View>
   );
 }
+
+const ParallaxTile = React.memo(ParallaxTileImpl, (prev, next) => prev.x === next.x && prev.layer === next.layer && prev.theme === next.theme);
 
 const styles = StyleSheet.create({
   root: { flex: 1, overflow: "hidden" },
