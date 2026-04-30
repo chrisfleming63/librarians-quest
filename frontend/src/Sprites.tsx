@@ -85,24 +85,56 @@ export function FemaleLibrarian({ width, height, running = true }: SpriteProps &
   );
 }
 
-// --- BOOK BANNER ENEMY ---
+// --- BOOK BANNER MONSTER ---
+// A snarling little gremlin/monster holding a "BANNED" sign and trying to censor books.
 export function BannerEnemy({ width, height }: SpriteProps) {
+  const skin = "#5A2A2A"; // dark crimson monster skin
+  const skinShade = "#3A1414";
+  const teeth = "#FFF4D9";
+  const eye = "#FFE600";
+  const sign = "#1A0F08";
+  const stamp = COLORS.enemyStamp;
   return (
     <View style={{ width, height }} testID="sprite-banner-enemy">
-      {/* Book body */}
-      <View style={{ position: "absolute", width, height, backgroundColor: COLORS.enemyDark, borderWidth: 2, borderColor: "#000", borderRadius: 2 }} />
-      {/* Pages */}
-      <View style={{ position: "absolute", left: 2, top: 3, width: 3, height: height - 6, backgroundColor: "#BBB" }} />
-      {/* BANNED stamp */}
-      <View style={{ position: "absolute", left: width * 0.1, top: height * 0.35, width: width * 0.8, height: height * 0.3, borderWidth: 2, borderColor: COLORS.enemyStamp, transform: [{ rotate: "-8deg" }], justifyContent: "center", alignItems: "center" }}>
-        <Text style={{ color: COLORS.enemyStamp, fontSize: Math.max(8, width * 0.18), fontWeight: "900", letterSpacing: 1 }}>BANNED</Text>
+      {/* Held-up "BANNED" sign behind head */}
+      <View style={{ position: "absolute", left: width * 0.05, top: 0, width: width * 0.9, height: height * 0.34, backgroundColor: sign, borderWidth: 2, borderColor: "#000", justifyContent: "center", alignItems: "center", transform: [{ rotate: "-4deg" }] }}>
+        <Text style={{ color: stamp, fontSize: Math.max(8, width * 0.2), fontWeight: "900", letterSpacing: 1 }}>BANNED</Text>
       </View>
-      {/* Angry eyes */}
-      <View style={{ position: "absolute", left: width * 0.2, top: height * 0.1, width: 5, height: 5, backgroundColor: "#FF2B2B", borderRadius: 1 }} />
-      <View style={{ position: "absolute", left: width * 0.7, top: height * 0.1, width: 5, height: 5, backgroundColor: "#FF2B2B", borderRadius: 1 }} />
-      {/* Feet */}
-      <View style={{ position: "absolute", left: width * 0.1, top: height - 4, width: width * 0.3, height: 4, backgroundColor: "#000" }} />
-      <View style={{ position: "absolute", left: width * 0.6, top: height - 4, width: width * 0.3, height: 4, backgroundColor: "#000" }} />
+      {/* Sign post / stick */}
+      <View style={{ position: "absolute", left: width * 0.46, top: height * 0.3, width: 4, height: height * 0.18, backgroundColor: "#3A1F12" }} />
+
+      {/* Horns */}
+      <View style={{ position: "absolute", left: width * 0.18, top: height * 0.34, width: 0, height: 0, borderLeftWidth: 6, borderRightWidth: 6, borderBottomWidth: 10, borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomColor: skinShade, transform: [{ rotate: "180deg" }] }} />
+      <View style={{ position: "absolute", right: width * 0.18, top: height * 0.34, width: 0, height: 0, borderLeftWidth: 6, borderRightWidth: 6, borderBottomWidth: 10, borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomColor: skinShade, transform: [{ rotate: "180deg" }] }} />
+
+      {/* Head */}
+      <View style={{ position: "absolute", left: width * 0.18, top: height * 0.4, width: width * 0.64, height: height * 0.34, backgroundColor: skin, borderWidth: 2, borderColor: "#000", borderRadius: 4 }} />
+      {/* Glowing angry eyes */}
+      <View style={{ position: "absolute", left: width * 0.28, top: height * 0.48, width: 7, height: 7, backgroundColor: eye, borderWidth: 1, borderColor: "#000" }} />
+      <View style={{ position: "absolute", right: width * 0.28, top: height * 0.48, width: 7, height: 7, backgroundColor: eye, borderWidth: 1, borderColor: "#000" }} />
+      {/* Eye pupils */}
+      <View style={{ position: "absolute", left: width * 0.31, top: height * 0.51, width: 3, height: 3, backgroundColor: "#000" }} />
+      <View style={{ position: "absolute", right: width * 0.31, top: height * 0.51, width: 3, height: 3, backgroundColor: "#000" }} />
+      {/* Snarling mouth with fangs */}
+      <View style={{ position: "absolute", left: width * 0.32, top: height * 0.62, width: width * 0.36, height: height * 0.08, backgroundColor: "#000" }} />
+      <View style={{ position: "absolute", left: width * 0.36, top: height * 0.62, width: 3, height: 5, backgroundColor: teeth }} />
+      <View style={{ position: "absolute", left: width * 0.46, top: height * 0.62, width: 3, height: 5, backgroundColor: teeth }} />
+      <View style={{ position: "absolute", left: width * 0.56, top: height * 0.62, width: 3, height: 5, backgroundColor: teeth }} />
+
+      {/* Body */}
+      <View style={{ position: "absolute", left: width * 0.22, top: height * 0.74, width: width * 0.56, height: height * 0.18, backgroundColor: skinShade, borderWidth: 2, borderColor: "#000" }} />
+      {/* Spiky shoulder */}
+      <View style={{ position: "absolute", left: width * 0.14, top: height * 0.76, width: 0, height: 0, borderLeftWidth: 5, borderRightWidth: 5, borderBottomWidth: 8, borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomColor: skinShade }} />
+      <View style={{ position: "absolute", right: width * 0.14, top: height * 0.76, width: 0, height: 0, borderLeftWidth: 5, borderRightWidth: 5, borderBottomWidth: 8, borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomColor: skinShade }} />
+
+      {/* Clawed feet */}
+      <View style={{ position: "absolute", left: width * 0.18, top: height * 0.92, width: width * 0.26, height: height * 0.08, backgroundColor: "#000" }} />
+      <View style={{ position: "absolute", right: width * 0.18, top: height * 0.92, width: width * 0.26, height: height * 0.08, backgroundColor: "#000" }} />
+      {/* Claws */}
+      <View style={{ position: "absolute", left: width * 0.18, top: height * 0.97, width: 3, height: 4, backgroundColor: teeth }} />
+      <View style={{ position: "absolute", left: width * 0.3, top: height * 0.97, width: 3, height: 4, backgroundColor: teeth }} />
+      <View style={{ position: "absolute", right: width * 0.18, top: height * 0.97, width: 3, height: 4, backgroundColor: teeth }} />
+      <View style={{ position: "absolute", right: width * 0.3, top: height * 0.97, width: 3, height: 4, backgroundColor: teeth }} />
     </View>
   );
 }
