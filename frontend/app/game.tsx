@@ -939,9 +939,6 @@ export default function GameScreen() {
             ))}
           </View>
           <View style={{ flexDirection: "row", gap: 6, marginTop: 8 }}>
-            <TouchableOpacity testID="throw-book-button" onPress={throwBook} style={[styles.pauseBtn, { opacity: ammo > 0 ? 1 : 0.4, borderColor: ammo > 0 ? COLORS.gold : COLORS.muted }]} activeOpacity={0.7}>
-              <Text style={[styles.pauseTxt, { fontSize: 14 }]}>📚 {ammo}</Text>
-            </TouchableOpacity>
             <TouchableOpacity testID="mute-toggle-button" onPress={toggleMute} style={styles.pauseBtn} activeOpacity={0.7}>
               <Text style={styles.pauseTxt}>{muted ? "🔇" : "🔊"}</Text>
             </TouchableOpacity>
@@ -952,8 +949,19 @@ export default function GameScreen() {
         </View>
       </View>
 
-      {/* Tap zone (offset below HUD to avoid overlapping buttons) */}
+      {/* Tap zone (offset below HUD and excluding bottom-right throw button area) */}
       <Pressable testID="touch-zone-jump" onPress={handleJump} style={{ position: "absolute", left: 0, right: 0, top: 130, bottom: 0 }} />
+
+      {/* Throw button (bottom-right, thumb-reachable, rendered AFTER jump zone so taps are captured first) */}
+      <TouchableOpacity
+        testID="throw-book-button"
+        onPress={throwBook}
+        activeOpacity={0.7}
+        style={[styles.throwFab, { opacity: ammo > 0 ? 1 : 0.5, borderColor: ammo > 0 ? COLORS.gold : COLORS.muted }]}
+      >
+        <Text style={styles.throwFabText}>📚</Text>
+        <Text style={styles.throwFabAmmo}>{ammo}</Text>
+      </TouchableOpacity>
 
       {/* Level intro overlay */}
       {showIntro && !gameOver && (
@@ -1126,4 +1134,19 @@ const styles = StyleSheet.create({
   overlayBtnAlt: { backgroundColor: COLORS.bgSurface, borderColor: COLORS.muted },
   overlayBtnText: { color: "#000", fontWeight: "900", fontSize: 16, letterSpacing: 2 },
   overlayBtnTextAlt: { color: COLORS.parchment, fontWeight: "900", fontSize: 14, letterSpacing: 2 },
+  throwFab: {
+    position: "absolute",
+    right: 20,
+    bottom: 28,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: COLORS.bgSurface,
+    borderWidth: 4,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 40,
+  },
+  throwFabText: { fontSize: 28, lineHeight: 30 },
+  throwFabAmmo: { color: COLORS.gold, fontSize: 12, fontWeight: "900", letterSpacing: 1, marginTop: -2 },
 });
