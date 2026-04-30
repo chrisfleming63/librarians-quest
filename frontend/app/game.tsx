@@ -211,6 +211,7 @@ export default function GameScreen() {
   const bossAttackTimer = useRef(90);
   const bossInvincible = useRef(0);
   const bossDir = useRef(1); // for teleport/sway
+  const celebratingRef = useRef(false);
 
   // Exposed state for render
   const [score, setScore] = useState(0);
@@ -222,6 +223,7 @@ export default function GameScreen() {
   const [levelComplete, setLevelComplete] = useState(false);
   const [showIntro, setShowIntro] = useState(true);
   const [bossHp, setBossHp] = useState(0);
+  const [celebrating, setCelebrating] = useState(false);
   const [ammo, setAmmo] = useState(0);
   const ammoRef = useRef(0);
 
@@ -497,6 +499,7 @@ export default function GameScreen() {
 
   const takeDamage = (x: number, y: number) => {
     if (invincibleFrames.current > 0) return;
+    if (celebratingRef.current) return;
     livesRef.current -= 1;
     setLives(livesRef.current);
     invincibleFrames.current = 45;
@@ -584,6 +587,7 @@ export default function GameScreen() {
 
   // === Boss level ===
   const stepBoss = () => {
+    if (celebratingRef.current) return; // freeze boss + projectiles during defeat celebration
     // Boss physics (gravity + occasional jump)
     bossVy.current += GRAVITY * 0.9;
     bossY.current += bossVy.current;
@@ -592,9 +596,9 @@ export default function GameScreen() {
       bossVy.current = 0;
     }
     // Horizontal pacing — boss moves forward/backward so player can stomp it
-    const BOSS_MIN_X = 50;
+    const BOSS_MIN_X = 22;
     const BOSS_MAX_X = SCREEN_W - BOSS_W - 30;
-    bossX.current += bossDir.current * 1.6;
+    bossX.current += bossDir.current * 2.2;
     if (bossX.current >= BOSS_MAX_X) { bossX.current = BOSS_MAX_X; bossDir.current = -1; }
     if (bossX.current <= BOSS_MIN_X) { bossX.current = BOSS_MIN_X; bossDir.current = 1; }
     // Decrease attack timer
@@ -602,8 +606,8 @@ export default function GameScreen() {
     if (bossInvincible.current > 0) bossInvincible.current -= 1;
 
     const attack = getBossAttack(levelRef.current);
-    // Sign projectile y: 60% LOW (must jump) / 40% HIGH (passes overhead unless jumping)
-    const signY = () => (Math.random() < 0.6 ? GROUND_Y - 36 : GROUND_Y - 175);
+    // Sign projectile y: 60% LOW (must jump) / 40% HIGH (passes above standing, hits jumper)
+    const signY = () => (Math.random() < 0.6 ? GROUND_Y - 28 : GROUND_Y - 105);
 
     if (bossAttackTimer.current <= 0) {
       if (attack === "signs") {
@@ -656,7 +660,7 @@ export default function GameScreen() {
 
     if (overlap && bossInvincible.current <= 0) {
       const top = bossY.current;
-      if (velocityY.current > 0 && playerBottom - velocityY.current <= top + 14) {
+      if (velocityY.current > 0 && playerBottom - velocityY.current <= top + 20) {
         // hit boss
         bossHpRef.current -= 1;
         setBossHp(bossHpRef.current);
@@ -680,8 +684,21 @@ export default function GameScreen() {
     scoreRef.current += bonus;
     setScore(scoreRef.current);
     addFloat(bossX.current, bossY.current, `+${bonus} BOSS`, COLORS.gold);
-    bossActiveRef.current = false;
-    triggerLevelComplete();
+    // Celebration window — freeze damage + boss, play victory chime, then advance
+    celebratingRef.current = true;
+    setCelebrating(true);
+    invincibleFrames.current = 9999;
+    try { bgmPlayer.pause(); } catch {}
+    playSfx(collectPlayer);
+    setTimeout(() => playSfx(collectPlayer), 350);
+    setTimeout(() => playSfx(collectPlayer), 700);
+    setTimeout(() => {
+      celebratingRef.current = false;
+      setCelebrating(false);
+      invincibleFrames.current = 0;
+      bossActiveRef.current = false;
+      triggerLevelComplete();
+    }, 2000);
   };
 
   const triggerLevelComplete = () => {
@@ -1044,6 +1061,14 @@ export default function GameScreen() {
           <TouchableOpacity testID="quit-to-menu-button-2" style={[styles.overlayBtn, styles.overlayBtnAlt]} onPress={goHome} activeOpacity={0.8}>
             <Text style={styles.overlayBtnTextAlt}>◀  MAIN MENU</Text>
           </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Boss-defeat celebration overlay */}
+      {celebrating && (
+        <View style={[styles.overlay, { backgroundColor: "rgba(255, 215, 0, 0.18)", zIndex: 60 }]} testID="boss-defeat-overlay" pointerEvents="none">
+          <Text style={[styles.overlayTitle, { color: COLORS.gold, fontSize: 42 }]}>★ BOSS ★</Text>
+          <Text style={[styles.overlayTitle, { color: COLORS.neonOrange, fontSize: 28, marginTop: -4 }]}>DEFEATED!</Text>
         </View>
       )}
 
