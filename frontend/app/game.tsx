@@ -953,15 +953,21 @@ export default function GameScreen() {
       <Pressable testID="touch-zone-jump" onPress={handleJump} style={{ position: "absolute", left: 0, right: 0, top: 130, bottom: 0 }} />
 
       {/* Throw button (bottom-right, thumb-reachable, rendered AFTER jump zone so taps are captured first) */}
-      <TouchableOpacity
+      <Pressable
         testID="throw-book-button"
-        onPress={throwBook}
-        activeOpacity={0.7}
-        style={[styles.throwFab, { opacity: ammo > 0 ? 1 : 0.5, borderColor: ammo > 0 ? COLORS.gold : COLORS.muted }]}
+        onPressIn={throwBook}
+        style={({ pressed }) => [
+          styles.throwFab,
+          {
+            opacity: ammo > 0 ? 1 : 0.5,
+            borderColor: ammo > 0 ? COLORS.gold : COLORS.muted,
+            transform: [{ scale: pressed ? 0.9 : 1 }],
+          },
+        ]}
       >
         <Text style={styles.throwFabText}>📚</Text>
         <Text style={styles.throwFabAmmo}>{ammo}</Text>
-      </TouchableOpacity>
+      </Pressable>
 
       {/* Level intro overlay */}
       {showIntro && !gameOver && (
