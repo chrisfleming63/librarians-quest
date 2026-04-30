@@ -1225,15 +1225,3 @@ const styles = StyleSheet.create({
   throwFabText: { fontSize: 28, lineHeight: 30 },
   throwFabAmmo: { color: COLORS.gold, fontSize: 12, fontWeight: "900", letterSpacing: 1, marginTop: -2 },
 });
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: COLORS.bgSurface,
-    borderWidth: 4,
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 40,
-  },
-  throwFabText: { fontSize: 28, lineHeight: 30 },
-  throwFabAmmo: { color: COLORS.gold, fontSize: 12, fontWeight: "900", letterSpacing: 1, marginTop: -2 },
-});
