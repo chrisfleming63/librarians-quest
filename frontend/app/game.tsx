@@ -173,6 +173,13 @@ export default function GameScreen() {
   const { character } = useLocalSearchParams<{ character?: string }>();
   const isFemale = character === "female";
 
+  // Character differentiation
+  // Marcus (male):  slightly slower run, larger book projectile hitbox
+  // Maya  (female): slightly faster run, higher jump
+  const playerSpeedMult = isFemale ? 1.05 : 0.92;
+  const playerJumpMult = isFemale ? 1.10 : 1.0;
+  const playerBookSize = isFemale ? BOOK_PROJ_SIZE : BOOK_PROJ_SIZE + 8;
+
   const [, setTick] = useState(0);
   const forceRender = useCallback(() => setTick((n) => n + 1), []);
 
