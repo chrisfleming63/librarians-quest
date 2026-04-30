@@ -117,7 +117,7 @@ const isBossLevel = (level: number) => level % 5 === 0;
 // Per-level score targets (null = boss fight).
 const getLevelTarget = (level: number): number => {
   if (isBossLevel(level)) return 0;
-  const table = [150, 300, 500, 750, 0, 1100, 1500, 2000, 2500, 0, 3100, 3800, 4600, 5400, 0];
+  const table = [200, 300, 500, 750, 0, 1100, 1500, 2000, 2500, 0, 3100, 3800, 4600, 5400, 0];
   return table[level - 1] ?? 150 + 300 * (level - 1);
 };
 
@@ -128,7 +128,7 @@ const getSpawnDelay = (level: number) => {
   const base = 70 - (level - 1) * 3;
   return Math.max(28, base);
 };
-const getBossHp = (level: number) => 3 + Math.floor(level / 5) * 2; // L5=3, L10=5, L15=7
+const getBossHp = (level: number) => Math.min(6, 3 + Math.floor(level / 5)); // capped at 6
 
 // Boss attack patterns per boss-level
 type BossAttack = "signs" | "shockwave" | "teleport";
@@ -178,6 +178,7 @@ export default function GameScreen() {
   const scrollX = useRef(0);
   const spawnCooldown = useRef(90);
   const lastSpawnTickRef = useRef(-9999);
+  const distAccRef = useRef(0);
   const invincibleFrames = useRef(0);
 
   const scoreRef = useRef(0);
@@ -339,15 +340,19 @@ export default function GameScreen() {
 
       // Movement
       if (e.kind === "playerBook") {
+        const prevBookX = e.x;
         e.x += BOOK_PROJ_VX;
         e.rot = (e.rot || 0) + 28;
         if (e.x > SCREEN_W + 50) e.dead = true;
+        // Swept-X: treat the book's horizontal hit range as [prevBookX, currentRight]
+        const sweptLeft = prevBookX;
+        const sweptRight = e.x + BOOK_PROJ_SIZE;
         // Collide with banners and boss
         for (const t of entities.current) {
           if (t === e || t.dead) continue;
           if (t.kind === "banner" && !t.stomped) {
             const td = entityDims(t);
-            if (e.x < t.x + td.w && e.x + BOOK_PROJ_SIZE > t.x && e.y < t.y + td.h && e.y + BOOK_PROJ_SIZE > t.y) {
+            if (sweptLeft < t.x + td.w && sweptRight > t.x && e.y < t.y + td.h && e.y + BOOK_PROJ_SIZE > t.y) {
               t.dead = true;
               e.dead = true;
               scoreRef.current += 30;
@@ -359,10 +364,10 @@ export default function GameScreen() {
           }
         }
         if (!e.dead && bossActiveRef.current && bossInvincible.current <= 0) {
-          if (e.x < bossX.current + BOSS_W && e.x + BOOK_PROJ_SIZE > bossX.current && e.y < bossY.current + BOSS_H && e.y + BOOK_PROJ_SIZE > bossY.current) {
+          if (sweptLeft < bossX.current + BOSS_W && sweptRight > bossX.current && e.y < bossY.current + BOSS_H && e.y + BOOK_PROJ_SIZE > bossY.current) {
             bossHpRef.current -= 1;
             setBossHp(bossHpRef.current);
-            bossInvincible.current = 30;
+            bossInvincible.current = 15;
             e.dead = true;
             addFloat(bossX.current, bossY.current, "-1 HP", COLORS.gold);
             playSfx(hitPlayer);
@@ -396,9 +401,12 @@ export default function GameScreen() {
     }
     entities.current = entities.current.filter((e) => !e.dead && e.x + 80 > -50);
 
-    // Distance score
-    if (Math.floor(scrollX.current) % 10 === 0) {
-      scoreRef.current += 1;
+    // Distance score (accumulator — consistent at all speeds)
+    distAccRef.current += speed.current;
+    if (distAccRef.current >= 10) {
+      const add = Math.floor(distAccRef.current / 10);
+      distAccRef.current -= add * 10;
+      scoreRef.current += add;
       setScore(scoreRef.current);
     }
 
@@ -500,9 +508,9 @@ export default function GameScreen() {
   };
 
   const spawnNormal = () => {
-    // Enforce minimum spawn gap (prevents unavoidable walls)
-    const minGapFrames = Math.ceil((140 + speed.current * 6) / Math.max(1, speed.current));
-    if (scrollX.current - lastSpawnTickRef.current < minGapFrames * speed.current) return;
+    // Enforce minimum spawn gap (prevents unavoidable walls); Level 1 gets extra breathing room
+    const minGapPx = 140 + speed.current * 6 + (levelRef.current === 1 ? 120 : 0);
+    if (scrollX.current - lastSpawnTickRef.current < minGapPx) return;
     lastSpawnTickRef.current = scrollX.current;
 
     const startX = SCREEN_W + 40;
@@ -638,7 +646,7 @@ export default function GameScreen() {
         addFloat(bossX.current + 40, bossY.current, "-1 HP", COLORS.gold);
         velocityY.current = -15;
         onGround.current = false;
-        bossInvincible.current = 30;
+        bossInvincible.current = 15;
         playSfx(hitPlayer);
         if (bossHpRef.current <= 0) {
           defeatBoss();
@@ -675,6 +683,7 @@ export default function GameScreen() {
     speed.current = getBaseSpeed(next);
     spawnCooldown.current = 60;
     lastSpawnTickRef.current = -9999;
+    distAccRef.current = 0;
     playerY.current = GROUND_Y - PLAYER_H;
     velocityY.current = 0;
     onGround.current = true;
@@ -702,7 +711,8 @@ export default function GameScreen() {
   };
 
   const handleJump = () => {
-    if (pausedRef.current || gameOverRef.current || levelCompleteRef.current || showIntro) return;
+    if (showIntro) { setShowIntro(false); return; }
+    if (pausedRef.current || gameOverRef.current || levelCompleteRef.current) return;
     if (jumpsUsed.current === 0) {
       velocityY.current = JUMP_V;
       jumpsUsed.current = 1;
@@ -756,6 +766,7 @@ export default function GameScreen() {
     scrollX.current = 0;
     spawnCooldown.current = 90;
     lastSpawnTickRef.current = -9999;
+    distAccRef.current = 0;
     invincibleFrames.current = 0;
     scoreRef.current = 0;
     livesRef.current = 3;
