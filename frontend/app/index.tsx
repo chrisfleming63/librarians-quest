@@ -8,7 +8,25 @@ import { FemaleLibrarian, MaleLibrarian, CollectibleBook, BannerEnemy } from "..
 export default function Title() {
   const router = useRouter();
   const [highScore, setHighScore] = useState(0);
+  const [tapCount, setTapCount] = useState(0);
   const { width } = Dimensions.get("window");
+
+  // 5-tap unlock on the title logo -> hidden Boss Test menu.
+  // Counter resets automatically after 1.5s of inactivity.
+  const tapTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleSecretTap = React.useCallback(() => {
+    setTapCount((n) => {
+      const next = n + 1;
+      if (next >= 5) {
+        if (tapTimer.current) clearTimeout(tapTimer.current);
+        router.push("/boss-test");
+        return 0;
+      }
+      if (tapTimer.current) clearTimeout(tapTimer.current);
+      tapTimer.current = setTimeout(() => setTapCount(0), 1500);
+      return next;
+    });
+  }, [router]);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -29,9 +47,18 @@ export default function Title() {
 
       <View style={styles.inner}>
         <Text style={styles.kicker}>★ PRESENTS ★</Text>
-        <Text style={styles.title}>LIBRARIAN'S</Text>
-        <Text style={[styles.title, styles.titleAccent]}>QUEST</Text>
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={handleSecretTap}
+          testID="secret-logo-tap"
+        >
+          <Text style={styles.title}>LIBRARIAN'S</Text>
+          <Text style={[styles.title, styles.titleAccent]}>QUEST</Text>
+        </TouchableOpacity>
         <Text style={styles.subtitle}>Defend the books. Dodge the banners</Text>
+        {tapCount > 0 && tapCount < 5 && (
+          <Text style={styles.tapHint}>{"•".repeat(tapCount)}{"◦".repeat(5 - tapCount)}</Text>
+        )}
 
         {/* Character preview row */}
         <View style={styles.charRow}>
@@ -99,4 +126,5 @@ const styles = StyleSheet.create({
   btnTextPrimary: { color: "#000", fontWeight: "900", fontSize: 16, letterSpacing: 2 },
   btnTextSecondary: { color: COLORS.parchment, fontWeight: "900", fontSize: 14, letterSpacing: 2 },
   footer: { color: COLORS.muted, fontSize: 11, marginTop: 28, letterSpacing: 1 },
+  tapHint: { color: COLORS.gold, fontSize: 14, letterSpacing: 4, marginTop: 8, fontWeight: "900" },
 });

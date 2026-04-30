@@ -170,8 +170,14 @@ const nextId = () => __idCtr++;
 
 export default function GameScreen() {
   const router = useRouter();
-  const { character } = useLocalSearchParams<{ character?: string }>();
+  const { character, startLevel: startLevelParam } = useLocalSearchParams<{ character?: string; startLevel?: string }>();
   const isFemale = character === "female";
+
+  // Dev / boss-test entry: ?startLevel=N allows jumping straight to any level.
+  // Clamped to a sane range; falls back to 1 when missing/invalid.
+  const initialLevel = Math.max(1, Math.min(99, parseInt(String(startLevelParam ?? "1"), 10) || 1));
+  const initialIsBoss = initialLevel > 1 && isBossLevel(initialLevel);
+  const initialBossHp = initialIsBoss ? getBossHp(initialLevel) : 0;
 
   // Character differentiation
   // Marcus (male):  slightly slower run, larger book projectile hitbox
@@ -189,7 +195,7 @@ export default function GameScreen() {
   const onGround = useRef(true);
   const jumpsUsed = useRef(0);
   const entities = useRef<Entity[]>([]);
-  const speed = useRef(getBaseSpeed(1) * playerSpeedMult);
+  const speed = useRef(getBaseSpeed(initialLevel) * playerSpeedMult);
   const scrollX = useRef(0);
   const spawnCooldown = useRef(90);
   const lastSpawnTickRef = useRef(-9999);
@@ -203,21 +209,21 @@ export default function GameScreen() {
   const gameOverRef = useRef(false);
 
   // Level state
-  const levelRef = useRef(1);
+  const levelRef = useRef(initialLevel);
   const levelStartScoreRef = useRef(0);
   const levelStartTimeRef = useRef(Date.now());
   const levelCompleteRef = useRef(false);
 
   // Boss state
-  const bossActiveRef = useRef(false);
-  const bossHpRef = useRef(0);
-  const bossMaxHpRef = useRef(0);
+  const bossActiveRef = useRef(initialIsBoss);
+  const bossHpRef = useRef(initialBossHp);
+  const bossMaxHpRef = useRef(initialBossHp);
   const bossX = useRef(BOSS_X);
   const bossY = useRef(GROUND_Y - BOSS_H);
   const bossVy = useRef(0);
   const bossAttackTimer = useRef(90);
   const bossInvincible = useRef(0);
-  const bossDir = useRef(1); // for teleport/sway
+  const bossDir = useRef(initialIsBoss ? -1 : 1); // for teleport/sway (start toward player on direct-boss entry)
   const bossPhaseRef = useRef<"pace" | "telegraph" | "dash" | "retreat">("pace");
   const bossPhaseTimerRef = useRef(180);
 
@@ -227,10 +233,10 @@ export default function GameScreen() {
   const [paused, setPaused] = useState(false);
   const [gameOver, setGameOver] = useState(false);
   const [highScore, setHighScore] = useState(0);
-  const [level, setLevel] = useState(1);
+  const [level, setLevel] = useState(initialLevel);
   const [levelComplete, setLevelComplete] = useState(false);
   const [showIntro, setShowIntro] = useState(true);
-  const [bossHp, setBossHp] = useState(0);
+  const [bossHp, setBossHp] = useState(initialBossHp);
   const [ammo, setAmmo] = useState(0);
   const ammoRef = useRef(0);
 
