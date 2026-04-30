@@ -114,11 +114,19 @@ const THEMES: Theme[] = [
 const getTheme = (level: number): Theme => THEMES[Math.floor((level - 1) / 5) % THEMES.length];
 const isBossLevel = (level: number) => level % 5 === 0;
 
-// Per-level score targets (null = boss fight).
+// Per-level score targets (kept for HUD/back-compat; level-completion now driven by time).
 const getLevelTarget = (level: number): number => {
   if (isBossLevel(level)) return 0;
   const table = [150, 300, 500, 750, 0, 1100, 1500, 2000, 2500, 0, 3100, 3800, 4600, 5400, 0];
   return table[level - 1] ?? 150 + 300 * (level - 1);
+};
+
+// Per-level real-time durations in milliseconds (boss levels = 0 → defeat-driven).
+const getLevelDurationMs = (level: number): number => {
+  if (isBossLevel(level)) return 0;
+  const seconds = [25, 27, 30, 33, 0, 33, 35, 37, 40, 0, 40, 42, 44, 46, 0];
+  const s = seconds[level - 1] ?? Math.min(60, 40 + (level - 11) * 2);
+  return s * 1000;
 };
 
 // Difficulty scaling
@@ -190,6 +198,7 @@ export default function GameScreen() {
   // Level state
   const levelRef = useRef(1);
   const levelStartScoreRef = useRef(0);
+  const levelStartTimeRef = useRef(Date.now());
   const levelCompleteRef = useRef(false);
 
   // Boss state
@@ -415,10 +424,10 @@ export default function GameScreen() {
     floatTextsRef.current = floatTextsRef.current.map((f) => ({ ...f, y: f.y - 2, ttl: f.ttl - 1 })).filter((f) => f.ttl > 0);
     setFloatTexts(floatTextsRef.current);
 
-    // Check level-complete (non-boss levels)
+    // Check level-complete (non-boss levels — driven by real time)
     if (!bossActiveRef.current) {
-      const target = getLevelTarget(levelRef.current);
-      if (target > 0 && scoreRef.current - levelStartScoreRef.current >= target) {
+      const dur = getLevelDurationMs(levelRef.current);
+      if (dur > 0 && Date.now() - levelStartTimeRef.current >= dur) {
         triggerLevelComplete();
       }
     }
@@ -678,6 +687,7 @@ export default function GameScreen() {
     levelRef.current = next;
     setLevel(next);
     levelStartScoreRef.current = scoreRef.current;
+    levelStartTimeRef.current = Date.now();
     entities.current = [];
     scrollX.current = 0;
     speed.current = getBaseSpeed(next);
@@ -775,6 +785,7 @@ export default function GameScreen() {
     floatTextsRef.current = [];
     levelRef.current = 1;
     levelStartScoreRef.current = 0;
+    levelStartTimeRef.current = Date.now();
     bossActiveRef.current = false;
     levelCompleteRef.current = false;
     setScore(0);
@@ -936,7 +947,7 @@ export default function GameScreen() {
           <Text style={styles.hudScore} testID="score-value">{String(score).padStart(6, "0")}</Text>
           {!isBossLevel(level) && (
             <Text style={styles.hudHi}>
-              {Math.max(0, getLevelTarget(level) - (score - levelStartScoreRef.current))} PTS TO NEXT
+              {Math.max(0, Math.ceil((getLevelDurationMs(level) - (Date.now() - levelStartTimeRef.current)) / 1000))}s LEFT
             </Text>
           )}
           {isBossLevel(level) && bossActiveRef.current && (
@@ -986,7 +997,7 @@ export default function GameScreen() {
           <Text style={[styles.overlayTitle, { color: theme.accent, fontSize: 28 }]}>LEVEL {level}</Text>
           <Text style={[styles.overlayTitle, { color: COLORS.gold, fontSize: 20, marginTop: 6 }]}>{isBossLevel(level) ? `BOSS — ${getBossName(level)}` : theme.name}</Text>
           {!isBossLevel(level) && (
-            <Text style={styles.goSub}>TARGET: {getLevelTarget(level)} PTS</Text>
+            <Text style={styles.goSub}>SURVIVE: {Math.round(getLevelDurationMs(level) / 1000)} SECONDS</Text>
           )}
         </View>
       )}
