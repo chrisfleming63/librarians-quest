@@ -138,33 +138,111 @@ export function BannerEnemy({ width, height, variant = 0, sign = "BANNED" }: Spr
 
 // --- BOSS PROTESTER ---
 // Bigger, meaner, holds a massive sign and wears a suit (politician vibe)
-export function BossProtester({ width, height, hp, maxHp }: SpriteProps & { hp: number; maxHp: number }) {
+export type BossVariant = "censor" | "board" | "inquisitor";
+
+const BOSS_VARIANTS: Record<BossVariant, {
+  signText: string;
+  signBg: string;
+  signTextColor: string;
+  signTilt: string;
+  suit: string;
+  suitTrim: string;
+  skin: string;
+  accent: string; // tie / sash / collar
+  accentY: number; // top % for accent
+  eye: string;
+  hat?: { color: string; brim?: string };
+  hood?: boolean;
+  glasses?: boolean;
+  badgeText?: string; // small badge color/text element
+}> = {
+  censor: {
+    signText: "CENSOR!",
+    signBg: "#FDF0D5",
+    signTextColor: COLORS.ruby,
+    signTilt: "-4deg",
+    suit: "#1A1F3A",
+    suitTrim: "#000",
+    skin: "#C8956D",
+    accent: COLORS.ruby,
+    accentY: 0.52,
+    eye: "#FF0000",
+  },
+  board: {
+    signText: "BANNED!",
+    signBg: "#FFF",
+    signTextColor: "#3A1F12",
+    signTilt: "5deg",
+    suit: "#5A4632",
+    suitTrim: "#1A0F08",
+    skin: "#A77B55",
+    accent: "#1F3F1A", // green tie
+    accentY: 0.50,
+    eye: "#FFD24A",
+    glasses: true,
+    hat: { color: "#1A0F08", brim: "#3A1F12" },
+  },
+  inquisitor: {
+    signText: "FORBIDDEN!",
+    signBg: "#1A0820",
+    signTextColor: "#E63946",
+    signTilt: "-8deg",
+    suit: "#2A0F3A", // dark purple robe
+    suitTrim: "#0A0010",
+    skin: "#7A5A48", // shadowed
+    accent: "#FFD24A", // gold cord
+    accentY: 0.46,
+    eye: "#FF2E63", // glowing red-pink
+    hood: true,
+  },
+};
+
+export function BossProtester({ width, height, hp, maxHp, variant = "censor" }: SpriteProps & { hp: number; maxHp: number; variant?: BossVariant }) {
+  const v = BOSS_VARIANTS[variant];
   return (
-    <View style={{ width, height }} testID="sprite-boss">
+    <View style={{ width, height }} testID={`sprite-boss-${variant}`}>
       {/* HP bar above head */}
       <View style={{ position: "absolute", left: 0, top: -14, width, height: 8, backgroundColor: "#000", borderWidth: 1, borderColor: COLORS.gold }}>
         <View style={{ width: `${Math.max(0, (hp / maxHp) * 100)}%`, height: "100%", backgroundColor: COLORS.ruby }} />
       </View>
       {/* Huge picket sign */}
-      <View style={{ position: "absolute", left: width * 0.02, top: 0, width: width * 0.96, height: height * 0.3, backgroundColor: "#FDF0D5", borderWidth: 3, borderColor: "#1A0F08", justifyContent: "center", alignItems: "center", transform: [{ rotate: "-4deg" }] }}>
-        <Text style={{ color: COLORS.ruby, fontSize: Math.max(10, width * 0.14), fontWeight: "900", letterSpacing: 1 }}>CENSOR!</Text>
+      <View style={{ position: "absolute", left: width * 0.02, top: 0, width: width * 0.96, height: height * 0.3, backgroundColor: v.signBg, borderWidth: 3, borderColor: "#1A0F08", justifyContent: "center", alignItems: "center", transform: [{ rotate: v.signTilt }] }}>
+        <Text style={{ color: v.signTextColor, fontSize: Math.max(10, width * 0.13), fontWeight: "900", letterSpacing: 1 }}>{v.signText}</Text>
       </View>
       {/* Sign stick */}
       <View style={{ position: "absolute", left: width * 0.48, top: height * 0.28, width: 6, height: height * 0.2, backgroundColor: "#3A1F12" }} />
       {/* Suit jacket body */}
-      <View style={{ position: "absolute", left: width * 0.2, top: height * 0.3, width: width * 0.6, height: height * 0.5, backgroundColor: "#1A1F3A", borderWidth: 2, borderColor: "#000" }} />
-      {/* Head (bald tyrant) */}
-      <View style={{ position: "absolute", left: width * 0.3, top: height * 0.32, width: width * 0.4, height: height * 0.2, backgroundColor: "#C8956D", borderWidth: 2, borderColor: "#000" }} />
-      {/* Red tie */}
-      <View style={{ position: "absolute", left: width * 0.46, top: height * 0.52, width: width * 0.08, height: height * 0.2, backgroundColor: COLORS.ruby }} />
-      {/* Evil eyes */}
-      <View style={{ position: "absolute", left: width * 0.36, top: height * 0.4, width: 5, height: 5, backgroundColor: "#FF0000" }} />
-      <View style={{ position: "absolute", right: width * 0.36, top: height * 0.4, width: 5, height: 5, backgroundColor: "#FF0000" }} />
-      {/* Angry mouth */}
+      <View style={{ position: "absolute", left: width * 0.2, top: height * 0.3, width: width * 0.6, height: height * 0.5, backgroundColor: v.suit, borderWidth: 2, borderColor: v.suitTrim }} />
+      {/* Hood (inquisitor only) — drapes around the head */}
+      {v.hood && (
+        <View style={{ position: "absolute", left: width * 0.22, top: height * 0.28, width: width * 0.56, height: height * 0.32, backgroundColor: v.suit, borderWidth: 2, borderColor: v.suitTrim, borderTopLeftRadius: 24, borderTopRightRadius: 24 }} />
+      )}
+      {/* Head */}
+      <View style={{ position: "absolute", left: width * 0.3, top: height * 0.32, width: width * 0.4, height: height * 0.2, backgroundColor: v.skin, borderWidth: 2, borderColor: "#000" }} />
+      {/* Hat (board chair only) */}
+      {v.hat && (
+        <>
+          <View style={{ position: "absolute", left: width * 0.26, top: height * 0.30, width: width * 0.48, height: 4, backgroundColor: v.hat.brim || v.hat.color }} />
+          <View style={{ position: "absolute", left: width * 0.32, top: height * 0.24, width: width * 0.36, height: height * 0.07, backgroundColor: v.hat.color }} />
+        </>
+      )}
+      {/* Glasses (board chair) */}
+      {v.glasses && (
+        <>
+          <View style={{ position: "absolute", left: width * 0.34, top: height * 0.39, width: width * 0.1, height: 6, borderWidth: 1, borderColor: "#000", backgroundColor: "#FFF" }} />
+          <View style={{ position: "absolute", right: width * 0.34, top: height * 0.39, width: width * 0.1, height: 6, borderWidth: 1, borderColor: "#000", backgroundColor: "#FFF" }} />
+        </>
+      )}
+      {/* Accent (tie / sash / cord) */}
+      <View style={{ position: "absolute", left: width * 0.46, top: height * v.accentY, width: width * 0.08, height: height * 0.2, backgroundColor: v.accent }} />
+      {/* Eyes */}
+      <View style={{ position: "absolute", left: width * 0.36, top: height * 0.4, width: 5, height: 5, backgroundColor: v.eye }} />
+      <View style={{ position: "absolute", right: width * 0.36, top: height * 0.4, width: 5, height: 5, backgroundColor: v.eye }} />
+      {/* Mouth */}
       <View style={{ position: "absolute", left: width * 0.4, top: height * 0.48, width: width * 0.2, height: 3, backgroundColor: "#000" }} />
       {/* Legs */}
-      <View style={{ position: "absolute", left: width * 0.28, top: height * 0.8, width: width * 0.18, height: height * 0.18, backgroundColor: "#0F0807" }} />
-      <View style={{ position: "absolute", right: width * 0.28, top: height * 0.8, width: width * 0.18, height: height * 0.18, backgroundColor: "#0F0807" }} />
+      <View style={{ position: "absolute", left: width * 0.28, top: height * 0.8, width: width * 0.18, height: height * 0.18, backgroundColor: variant === "inquisitor" ? v.suit : "#0F0807" }} />
+      <View style={{ position: "absolute", right: width * 0.28, top: height * 0.8, width: width * 0.18, height: height * 0.18, backgroundColor: variant === "inquisitor" ? v.suit : "#0F0807" }} />
       {/* Shoes */}
       <View style={{ position: "absolute", left: width * 0.26, top: height * 0.96, width: width * 0.24, height: height * 0.04, backgroundColor: "#000" }} />
       <View style={{ position: "absolute", right: width * 0.26, top: height * 0.96, width: width * 0.24, height: height * 0.04, backgroundColor: "#000" }} />

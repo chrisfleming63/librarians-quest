@@ -149,6 +149,11 @@ const getBossName = (level: number) => {
   return names[Math.floor((level - 5) / 5) % names.length];
 };
 
+const getBossVariant = (level: number): "censor" | "board" | "inquisitor" => {
+  const variants: ("censor" | "board" | "inquisitor")[] = ["censor", "board", "inquisitor"];
+  return variants[Math.floor((level - 5) / 5) % variants.length];
+};
+
 type Entity = {
   id: number;
   x: number;
@@ -226,6 +231,9 @@ export default function GameScreen() {
   const bossDir = useRef(initialIsBoss ? -1 : 1); // for teleport/sway (start toward player on direct-boss entry)
   const bossPhaseRef = useRef<"pace" | "telegraph" | "dash" | "retreat">("pace");
   const bossPhaseTimerRef = useRef(180);
+  // Defeat sequence: timestamp (ms) when the boss was defeated. Used for
+  // a flicker animation + delayed level-complete trigger.
+  const bossDefeatedAtRef = useRef(0);
 
   // Exposed state for render
   const [score, setScore] = useState(0);
@@ -724,13 +732,34 @@ export default function GameScreen() {
   };
 
   const defeatBoss = () => {
+    // Idempotent: ignore re-entry from rapid hits during the celebration window
+    if (bossDefeatedAtRef.current > 0) return;
     const lvl = levelRef.current;
     const bonus = 500 * Math.floor(lvl / 5);
     scoreRef.current += bonus;
     setScore(scoreRef.current);
     addFloat(bossX.current, bossY.current, `+${bonus} BOSS`, COLORS.gold);
+    addFloat(bossX.current + 10, bossY.current - 30, "DEFEATED!", COLORS.neonOrange);
+    bossDefeatedAtRef.current = Date.now();
+    // Stop further attacks; keep boss visible (flickering) until the timer fires.
     bossActiveRef.current = false;
-    triggerLevelComplete();
+    bossInvincible.current = 9999;
+    // Fanfare: 4 quick rising "chime" plays of the collect SFX, plus a final hit thump.
+    try {
+      const playChime = (delay: number) => setTimeout(() => {
+        try { collectPlayer.seekTo(0); collectPlayer.play(); } catch {}
+      }, delay);
+      playChime(0);
+      playChime(140);
+      playChime(280);
+      playChime(440);
+      setTimeout(() => { try { hitPlayer.seekTo(0); hitPlayer.play(); } catch {} }, 700);
+    } catch {}
+    // Move on after the celebration window (~1600ms).
+    setTimeout(() => {
+      bossDefeatedAtRef.current = 0;
+      triggerLevelComplete();
+    }, 1600);
   };
 
   const triggerLevelComplete = () => {
@@ -759,6 +788,7 @@ export default function GameScreen() {
 
     if (isBossLevel(next)) {
       bossActiveRef.current = true;
+      bossDefeatedAtRef.current = 0;
       const hp = getBossHp(next);
       bossHpRef.current = hp;
       bossMaxHpRef.current = hp;
@@ -847,6 +877,7 @@ export default function GameScreen() {
     levelStartScoreRef.current = 0;
     levelStartTimeRef.current = Date.now();
     bossActiveRef.current = false;
+    bossDefeatedAtRef.current = 0;
     levelCompleteRef.current = false;
     setScore(0);
     setLives(3);
@@ -908,9 +939,26 @@ export default function GameScreen() {
       </View>
 
       {/* Boss */}
-      {bossActiveRef.current && (
-        <View style={{ position: "absolute", left: bossX.current, top: bossY.current, opacity: bossInvincible.current > 0 && bossInvincible.current % 4 < 2 ? 0.4 : 1 }}>
-          <BossProtester width={BOSS_W} height={BOSS_H} hp={bossHp} maxHp={bossMaxHpRef.current} />
+      {(bossActiveRef.current || bossDefeatedAtRef.current > 0) && (
+        <View
+          style={{
+            position: "absolute",
+            left: bossX.current,
+            top: bossY.current,
+            opacity: bossDefeatedAtRef.current > 0
+              // Defeat: rapid 80ms flicker between full and 15% opacity
+              ? (Math.floor((Date.now() - bossDefeatedAtRef.current) / 80) % 2 === 0 ? 1 : 0.15)
+              // Live: i-frame flash on hit
+              : (bossInvincible.current > 0 && bossInvincible.current % 4 < 2 ? 0.4 : 1),
+          }}
+        >
+          <BossProtester
+            width={BOSS_W}
+            height={BOSS_H}
+            hp={bossHp}
+            maxHp={bossMaxHpRef.current}
+            variant={getBossVariant(level)}
+          />
         </View>
       )}
 
