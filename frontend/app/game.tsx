@@ -490,12 +490,12 @@ export default function GameScreen() {
     const variant = Math.floor(Math.random() * 4);
     const sign = PROTEST_SIGNS[Math.floor(Math.random() * PROTEST_SIGNS.length)];
 
-    if (r < 0.05) {
+    if (r < 0.08) {
       // POWER-UP (rare): glowing book stack at jumpable height
       entities.current.push({
-        id: nextId(), x: startX, y: GROUND_Y - POWERUP_SIZE - 70, kind: "powerup",
+        id: nextId(), x: startX, y: GROUND_Y - POWERUP_SIZE - 30, kind: "powerup",
       });
-    } else if (r < 0.18) {
+    } else if (r < 0.21) {
       // PLATFORM with books on top
       const platW = 100 + Math.random() * 70;
       const platY = GROUND_Y - 95 - Math.random() * 55;

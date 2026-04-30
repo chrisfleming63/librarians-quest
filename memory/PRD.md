@@ -47,6 +47,15 @@ A Super Mario Bros-style 2D side-scrolling platformer mobile game celebrating Af
 - **Shockwave**: ground-hugging red wave (Boss 2 attack)
 - **Stacked protesters** (L6+): require double-jump
 - **Mid-air projectile signs** (L3+): require well-timed jumps in normal levels
+- **Wooden barricades** (obstacles, L2+): X-cross signs with warning stripes — must be jumped over (do not die when hit, just damage player)
+
+## Platforms & Power-Ups
+- **Wooden ledge platforms**: spawn periodically at jumpable height; carry collectible books on top. Player can land on them (one-way collision — fall through from below).
+- **Book Throw Power-up** (rare ~8% spawn): glowing stack of red/green/yellow books with golden aura and ★ sparkle. Collecting it gives +3 ammo (capped at 9) and +25 pts.
+- **Throw button** in HUD: tap "📚 N" to fire a spinning book projectile rightward at 14 px/frame.
+  - Hits a protester → both die, +30 pts
+  - Hits a boss → -1 HP
+  - Disabled when ammo = 0
 
 ## Screens
 | Route | Purpose |
