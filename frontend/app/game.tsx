@@ -460,6 +460,21 @@ export default function GameScreen() {
       e.dead = true;
       return;
     }
+    if (e.kind === "obstacle") {
+      takeDamage(playerRect.x, playerRect.y);
+      // Obstacle stays — player must learn to jump it
+      return;
+    }
+    if (e.kind === "powerup") {
+      e.dead = true;
+      ammoRef.current = Math.min(9, ammoRef.current + 3);
+      setAmmo(ammoRef.current);
+      scoreRef.current += 25;
+      setScore(scoreRef.current);
+      addFloat(e.x, e.y, "+3 BOOKS!", COLORS.neonOrange);
+      playSfx(collectPlayer);
+      return;
+    }
   };
 
   const takeDamage = (x: number, y: number) => {
