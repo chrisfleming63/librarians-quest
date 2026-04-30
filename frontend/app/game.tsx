@@ -182,7 +182,7 @@ export default function GameScreen() {
   const onGround = useRef(true);
   const jumpsUsed = useRef(0);
   const entities = useRef<Entity[]>([]);
-  const speed = useRef(getBaseSpeed(1));
+  const speed = useRef(getBaseSpeed(1) * playerSpeedMult);
   const scrollX = useRef(0);
   const spawnCooldown = useRef(90);
   const lastSpawnTickRef = useRef(-9999);
@@ -357,13 +357,13 @@ export default function GameScreen() {
         if (e.x > SCREEN_W + 50) e.dead = true;
         // Swept-X: treat the book's horizontal hit range as [prevBookX, currentRight]
         const sweptLeft = prevBookX;
-        const sweptRight = e.x + BOOK_PROJ_SIZE;
+        const sweptRight = e.x + playerBookSize;
         // Collide with banners and boss
         for (const t of entities.current) {
           if (t === e || t.dead) continue;
           if (t.kind === "banner" && !t.stomped) {
             const td = entityDims(t);
-            if (sweptLeft < t.x + td.w && sweptRight > t.x && e.y < t.y + td.h && e.y + BOOK_PROJ_SIZE > t.y) {
+            if (sweptLeft < t.x + td.w && sweptRight > t.x && e.y < t.y + td.h && e.y + playerBookSize > t.y) {
               t.dead = true;
               e.dead = true;
               scoreRef.current += 30;
@@ -375,7 +375,7 @@ export default function GameScreen() {
           }
         }
         if (!e.dead && bossActiveRef.current && bossInvincible.current <= 0) {
-          if (sweptLeft < bossX.current + BOSS_W && sweptRight > bossX.current && e.y < bossY.current + BOSS_H && e.y + BOOK_PROJ_SIZE > bossY.current) {
+          if (sweptLeft < bossX.current + BOSS_W && sweptRight > bossX.current && e.y < bossY.current + BOSS_H && e.y + playerBookSize > bossY.current) {
             bossHpRef.current -= 1;
             setBossHp(bossHpRef.current);
             bossInvincible.current = 15;
@@ -444,7 +444,7 @@ export default function GameScreen() {
     if (e.kind === "platform") return { w: e.w || 90, h: PLATFORM_H };
     if (e.kind === "obstacle") return { w: OBSTACLE_W, h: OBSTACLE_H };
     if (e.kind === "powerup") return { w: POWERUP_SIZE, h: POWERUP_SIZE };
-    if (e.kind === "playerBook") return { w: BOOK_PROJ_SIZE, h: BOOK_PROJ_SIZE };
+    if (e.kind === "playerBook") return { w: playerBookSize, h: playerBookSize };
     return { w: 60, h: 16 };
   };
 
@@ -730,7 +730,7 @@ export default function GameScreen() {
     levelStartTimeRef.current = Date.now();
     entities.current = [];
     scrollX.current = 0;
-    speed.current = getBaseSpeed(next);
+    speed.current = getBaseSpeed(next) * playerSpeedMult;
     spawnCooldown.current = 60;
     lastSpawnTickRef.current = -9999;
     distAccRef.current = 0;
@@ -767,12 +767,12 @@ export default function GameScreen() {
     if (showIntro) { setShowIntro(false); return; }
     if (pausedRef.current || gameOverRef.current || levelCompleteRef.current) return;
     if (jumpsUsed.current === 0) {
-      velocityY.current = JUMP_V;
+      velocityY.current = JUMP_V * playerJumpMult;
       jumpsUsed.current = 1;
       onGround.current = false;
       playSfx(jumpPlayer);
     } else if (jumpsUsed.current === 1) {
-      velocityY.current = DOUBLE_JUMP_V;
+      velocityY.current = DOUBLE_JUMP_V * playerJumpMult;
       jumpsUsed.current = 2;
       playSfx(jumpPlayer);
     }
@@ -815,7 +815,7 @@ export default function GameScreen() {
     onGround.current = true;
     jumpsUsed.current = 0;
     entities.current = [];
-    speed.current = getBaseSpeed(1);
+    speed.current = getBaseSpeed(1) * playerSpeedMult;
     scrollX.current = 0;
     spawnCooldown.current = 90;
     lastSpawnTickRef.current = -9999;
@@ -961,10 +961,10 @@ export default function GameScreen() {
         }
         if (e.kind === "playerBook") {
           return (
-            <View key={e.id} style={{ position: "absolute", left: e.x, top: e.y, width: BOOK_PROJ_SIZE, height: BOOK_PROJ_SIZE, transform: [{ rotate: `${e.rot || 0}deg` }] }}>
-              <View style={{ width: BOOK_PROJ_SIZE, height: BOOK_PROJ_SIZE, backgroundColor: e.color || COLORS.bookRed, borderWidth: 2, borderColor: "#000" }} />
-              <View style={{ position: "absolute", left: 0, top: 0, width: 3, height: BOOK_PROJ_SIZE, backgroundColor: COLORS.gold }} />
-              <View style={{ position: "absolute", left: 6, top: BOOK_PROJ_SIZE * 0.35, width: BOOK_PROJ_SIZE - 10, height: 2, backgroundColor: COLORS.gold }} />
+            <View key={e.id} style={{ position: "absolute", left: e.x, top: e.y, width: playerBookSize, height: playerBookSize, transform: [{ rotate: `${e.rot || 0}deg` }] }}>
+              <View style={{ width: playerBookSize, height: playerBookSize, backgroundColor: e.color || COLORS.bookRed, borderWidth: 2, borderColor: "#000" }} />
+              <View style={{ position: "absolute", left: 0, top: 0, width: 3, height: playerBookSize, backgroundColor: COLORS.gold }} />
+              <View style={{ position: "absolute", left: 6, top: playerBookSize * 0.35, width: playerBookSize - 10, height: 2, backgroundColor: COLORS.gold }} />
             </View>
           );
         }
@@ -1209,6 +1209,18 @@ const styles = StyleSheet.create({
     position: "absolute",
     right: 20,
     bottom: 28,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: COLORS.bgSurface,
+    borderWidth: 4,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 40,
+  },
+  throwFabText: { fontSize: 28, lineHeight: 30 },
+  throwFabAmmo: { color: COLORS.gold, fontSize: 12, fontWeight: "900", letterSpacing: 1, marginTop: -2 },
+});
     width: 72,
     height: 72,
     borderRadius: 36,
