@@ -273,6 +273,9 @@ export default function GameScreen() {
   const SLIDE_COOLDOWN_MS = 500; // after slide ends
   const slideEndAtRef = useRef(0);
   const slideCooldownUntilRef = useRef(0);
+  // Mirror of the `sliding` state — readable from the interval-based game
+  // loop without the stale-closure problem the state would have.
+  const slidingRef = useRef(false);
   const [sliding, setSliding] = useState(false);
 
   const [floatTexts, setFloatTexts] = useState<{ id: number; x: number; y: number; text: string; color: string; ttl: number }[]>([]);
@@ -507,7 +510,8 @@ export default function GameScreen() {
     // Floats
     if (invincibleFrames.current > 0) invincibleFrames.current -= 1;
     // Expire slide once its timer elapses; kick off cooldown for the next slide.
-    if (sliding && Date.now() >= slideEndAtRef.current) {
+    if (slidingRef.current && Date.now() >= slideEndAtRef.current) {
+      slidingRef.current = false;
       setSliding(false);
       slideCooldownUntilRef.current = Date.now() + SLIDE_COOLDOWN_MS;
     }
@@ -987,8 +991,9 @@ export default function GameScreen() {
     if (showIntro) { setShowIntro(false); return; }
     if (pausedRef.current || gameOverRef.current || levelCompleteRef.current) return;
     if (!onGround.current) return;
-    if (sliding) return;
+    if (slidingRef.current) return;
     if (Date.now() < slideCooldownUntilRef.current) return;
+    slidingRef.current = true;
     setSliding(true);
     slideEndAtRef.current = Date.now() + SLIDE_DURATION_MS;
     playSfx(jumpPlayer);
@@ -1085,6 +1090,10 @@ export default function GameScreen() {
     setAmmo(0);
     shieldUntilRef.current = 0;
     setShieldOn(false);
+    slidingRef.current = false;
+    setSliding(false);
+    slideEndAtRef.current = 0;
+    slideCooldownUntilRef.current = 0;
     if (!mutedRef.current) { try { bgmStartedRef.current = true; bgmPlayer.seekTo(0); bgmPlayer.play(); } catch {} }
     continueUsedRef.current = false;
   };
