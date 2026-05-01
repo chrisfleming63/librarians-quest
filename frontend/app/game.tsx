@@ -154,12 +154,21 @@ const getBossVariant = (level: number): "censor" | "board" | "inquisitor" => {
   return variants[Math.floor((level - 5) / 5) % variants.length];
 };
 
+// Probability of spawning a ground gap on a given spawn cycle. Off on level 1
+// (gentle onboarding) and on boss levels. Ramps gently and caps so the game
+// never feels unfair.
+const getGapChance = (level: number) => {
+  if (level < 2) return 0;
+  if (isBossLevel(level)) return 0;
+  return Math.min(0.18, 0.05 + (level - 2) * 0.015);
+};
+
 type Entity = {
   id: number;
   x: number;
   y: number;
   vy?: number;
-  kind: "book" | "banner" | "sign" | "shockwave" | "platform" | "obstacle" | "powerup" | "playerBook";
+  kind: "book" | "banner" | "sign" | "shockwave" | "platform" | "obstacle" | "powerup" | "playerBook" | "gap" | "shield";
   color?: string;
   title?: string;
   variant?: number;
@@ -247,6 +256,9 @@ export default function GameScreen() {
   const [bossHp, setBossHp] = useState(initialBossHp);
   const [ammo, setAmmo] = useState(0);
   const ammoRef = useRef(0);
+  // Shield power-up: timestamp (ms) until which the player is invulnerable.
+  const shieldUntilRef = useRef(0);
+  const [shieldOn, setShieldOn] = useState(false);
 
   const [floatTexts, setFloatTexts] = useState<{ id: number; x: number; y: number; text: string; color: string; ttl: number }[]>([]);
   const floatTextsRef = useRef<typeof floatTexts>([]);
@@ -344,7 +356,20 @@ export default function GameScreen() {
       }
     }
 
-    if (playerY.current >= GROUND_Y - PLAYER_H) {
+    // Ground-landing check: blocked if the player's footprint overlaps a gap.
+    // Includes a small forgiveness margin so jumps feel fair at the edges.
+    let overGap = false;
+    {
+      const footL = PLAYER_X + 8;
+      const footR = PLAYER_X + PLAYER_W - 8;
+      for (const e of entities.current) {
+        if (e.kind !== "gap" || e.dead) continue;
+        const gw = e.w || 90;
+        if (footR > e.x && footL < e.x + gw) { overGap = true; break; }
+      }
+    }
+
+    if (!overGap && playerY.current >= GROUND_Y - PLAYER_H) {
       playerY.current = GROUND_Y - PLAYER_H;
       velocityY.current = 0;
       onGround.current = true;
@@ -354,6 +379,12 @@ export default function GameScreen() {
       jumpsUsed.current = 0;
     } else {
       onGround.current = false;
+      // Pit respawn: if the player has fallen well below the ground, take damage and reset.
+      if (playerY.current > GROUND_Y + 60) {
+        playerY.current = GROUND_Y - PLAYER_H - 80;
+        velocityY.current = -10;
+        takeDamage(PLAYER_X, GROUND_Y - 50);
+      }
     }
 
     scrollX.current += speed.current;
@@ -417,8 +448,8 @@ export default function GameScreen() {
         e.x -= speed.current;
       }
 
-      // Skip player-collision for platforms (handled in physics)
-      if (e.kind === "platform") continue;
+      // Skip player-collision for platforms (handled in physics) and gaps (handled in landing check)
+      if (e.kind === "platform" || e.kind === "gap") continue;
 
       if (!e.stomped) {
         const dims = entityDims(e);
@@ -444,6 +475,11 @@ export default function GameScreen() {
 
     // Floats
     if (invincibleFrames.current > 0) invincibleFrames.current -= 1;
+    // Expire shield once its timestamp has passed.
+    if (shieldOn && shieldUntilRef.current > 0 && shieldUntilRef.current <= Date.now()) {
+      shieldUntilRef.current = 0;
+      setShieldOn(false);
+    }
     floatTextsRef.current = floatTextsRef.current.map((f) => ({ ...f, y: f.y - 2, ttl: f.ttl - 1 })).filter((f) => f.ttl > 0);
     setFloatTexts(floatTextsRef.current);
 
@@ -465,6 +501,7 @@ export default function GameScreen() {
     if (e.kind === "platform") return { w: e.w || 90, h: PLATFORM_H };
     if (e.kind === "obstacle") return { w: OBSTACLE_W, h: OBSTACLE_H };
     if (e.kind === "powerup") return { w: POWERUP_SIZE, h: POWERUP_SIZE };
+    if (e.kind === "shield") return { w: POWERUP_SIZE, h: POWERUP_SIZE };
     if (e.kind === "playerBook") return { w: playerBookSize, h: playerBookSize };
     return { w: 60, h: 16 };
   };
@@ -516,10 +553,31 @@ export default function GameScreen() {
       playSfx(collectPlayer);
       return;
     }
+    if (e.kind === "shield") {
+      e.dead = true;
+      // 5-second shield. Stacks by extending duration if collected back-to-back.
+      const baseT = Math.max(Date.now(), shieldUntilRef.current);
+      shieldUntilRef.current = baseT + 5000;
+      setShieldOn(true);
+      scoreRef.current += 25;
+      setScore(scoreRef.current);
+      addFloat(e.x, e.y, "+SHIELD!", COLORS.parchment);
+      playSfx(collectPlayer);
+      return;
+    }
   };
 
   const takeDamage = (x: number, y: number) => {
     if (invincibleFrames.current > 0) return;
+    // Shield absorbs one hit and is consumed.
+    if (shieldUntilRef.current > Date.now()) {
+      shieldUntilRef.current = 0;
+      setShieldOn(false);
+      invincibleFrames.current = 30;
+      addFloat(x, y, "BLOCKED!", COLORS.parchment);
+      playSfx(hitPlayer);
+      return;
+    }
     livesRef.current -= 1;
     setLives(livesRef.current);
     invincibleFrames.current = 45;
@@ -547,15 +605,31 @@ export default function GameScreen() {
 
     const startX = SCREEN_W + 40;
     const lvl = levelRef.current;
+
+    // GROUND GAP — spawned BEFORE other entities so it gets the slot alone.
+    // Width 70-100 px is comfortably jumpable; isolating the gap on a spawn
+    // cycle guarantees no overlapping obstacle/banner sits inside it.
+    if (Math.random() < getGapChance(lvl)) {
+      const gapW = 70 + Math.random() * 30;
+      entities.current.push({ id: nextId(), x: startX, y: GROUND_Y, w: gapW, kind: "gap" });
+      return;
+    }
+
     const r = Math.random();
     const variant = Math.floor(Math.random() * 4);
     const sign = PROTEST_SIGNS[Math.floor(Math.random() * PROTEST_SIGNS.length)];
 
     if (r < 0.08) {
-      // POWER-UP (rare): glowing book stack at jumpable height
-      entities.current.push({
-        id: nextId(), x: startX, y: GROUND_Y - POWERUP_SIZE - 30, kind: "powerup",
-      });
+      // POWER-UP (rare). 30% chance the spawn is a SHIELD instead of an ammo refill.
+      if (Math.random() < 0.30) {
+        entities.current.push({
+          id: nextId(), x: startX, y: GROUND_Y - POWERUP_SIZE - 30, kind: "shield",
+        });
+      } else {
+        entities.current.push({
+          id: nextId(), x: startX, y: GROUND_Y - POWERUP_SIZE - 30, kind: "powerup",
+        });
+      }
     } else if (r < 0.21) {
       // PLATFORM with books on top
       const platW = 100 + Math.random() * 70;
@@ -890,6 +964,8 @@ export default function GameScreen() {
     setShowIntro(true);
     ammoRef.current = 0;
     setAmmo(0);
+    shieldUntilRef.current = 0;
+    setShieldOn(false);
     if (!mutedRef.current) { try { bgmPlayer.seekTo(0); bgmPlayer.play(); } catch {} }
   };
 
@@ -1024,6 +1100,35 @@ export default function GameScreen() {
             </View>
           );
         }
+        if (e.kind === "shield") {
+          // Glowing teal book power-up. Concentric rings telegraph the SHIELD.
+          return (
+            <View key={e.id} style={{ position: "absolute", left: e.x, top: e.y, width: POWERUP_SIZE, height: POWERUP_SIZE }}>
+              <View style={{ position: "absolute", left: -10, top: -10, width: POWERUP_SIZE + 20, height: POWERUP_SIZE + 20, backgroundColor: "rgba(46, 196, 182, 0.30)", borderRadius: POWERUP_SIZE }} />
+              <View style={{ position: "absolute", left: -4, top: -4, width: POWERUP_SIZE + 8, height: POWERUP_SIZE + 8, borderWidth: 2, borderColor: "#2EC4B6", borderRadius: POWERUP_SIZE }} />
+              <View style={{ position: "absolute", left: 0, top: 0, width: POWERUP_SIZE, height: POWERUP_SIZE, backgroundColor: "#1B6E68", borderWidth: 2, borderColor: "#000" }} />
+              <Text style={{ position: "absolute", left: 0, top: 4, width: POWERUP_SIZE, textAlign: "center", fontSize: 18, fontWeight: "900", color: "#FFF" }}>🛡</Text>
+              <Text style={{ position: "absolute", left: 0, bottom: 1, width: POWERUP_SIZE, textAlign: "center", fontSize: 7, fontWeight: "900", letterSpacing: 1, color: COLORS.parchment }}>SHIELD</Text>
+            </View>
+          );
+        }
+        if (e.kind === "gap") {
+          // Visualize the gap as a dark void in the floor: matches bgBase
+          // colour to "subtract" the ground stripe for that span.
+          const gw = e.w || 90;
+          return (
+            <View
+              key={e.id}
+              style={{ position: "absolute", left: e.x, top: GROUND_Y, width: gw, height: SCREEN_H - GROUND_Y, backgroundColor: COLORS.bgBase }}
+              pointerEvents="none"
+            >
+              {/* Edge highlights so the gap reads cleanly against the floor */}
+              <View style={{ position: "absolute", left: 0, top: 0, width: 3, height: 12, backgroundColor: "#000" }} />
+              <View style={{ position: "absolute", right: 0, top: 0, width: 3, height: 12, backgroundColor: "#000" }} />
+              <View style={{ position: "absolute", left: 0, top: 0, width: gw, height: 4, backgroundColor: "rgba(0,0,0,0.5)" }} />
+            </View>
+          );
+        }
         if (e.kind === "playerBook") {
           return (
             <View key={e.id} style={{ position: "absolute", left: e.x, top: e.y, width: playerBookSize, height: playerBookSize, transform: [{ rotate: `${e.rot || 0}deg` }] }}>
@@ -1038,6 +1143,24 @@ export default function GameScreen() {
 
       {/* Player */}
       <View style={{ position: "absolute", left: PLAYER_X, top: playerY.current, opacity: flicker ? 0.3 : 1 }} testID="player-sprite">
+        {shieldOn && shieldUntilRef.current > Date.now() && (
+          <View
+            pointerEvents="none"
+            style={{
+              position: "absolute",
+              left: -10,
+              top: -10,
+              width: PLAYER_W + 20,
+              height: PLAYER_H + 20,
+              borderRadius: (PLAYER_W + 20) / 2,
+              borderWidth: 3,
+              borderColor: "#2EC4B6",
+              backgroundColor: "rgba(46, 196, 182, 0.18)",
+              opacity: Math.floor(Date.now() / 120) % 2 === 0 ? 1 : 0.55,
+            }}
+            testID="shield-ring"
+          />
+        )}
         <PlayerSprite width={PLAYER_W} height={PLAYER_H} running={onGround.current} />
       </View>
 
