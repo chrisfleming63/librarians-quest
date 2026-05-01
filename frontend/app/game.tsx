@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Dimensions,
   Pressable,
-  PanResponder,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -268,16 +267,6 @@ export default function GameScreen() {
   const continueUsedRef = useRef(false);
   const [adVisible, setAdVisible] = useState(false);
 
-  // Slide / dodge mechanic (swipe-down)
-  const SLIDE_DURATION_MS = 650;
-  const SLIDE_COOLDOWN_MS = 250; // after slide ends — short, forgiving
-  const slideEndAtRef = useRef(0);
-  const slideCooldownUntilRef = useRef(0);
-  // Mirror of the `sliding` state — readable from the interval-based game
-  // loop without the stale-closure problem the state would have.
-  const slidingRef = useRef(false);
-  const [sliding, setSliding] = useState(false);
-
   const [floatTexts, setFloatTexts] = useState<{ id: number; x: number; y: number; text: string; color: string; ttl: number }[]>([]);
   const floatTextsRef = useRef<typeof floatTexts>([]);
 
@@ -426,11 +415,7 @@ export default function GameScreen() {
     }
 
     // Entity movement & collision (shared)
-    // Slide compresses the player's hitbox to ~55% height, bottom-aligned,
-    // so shoulder-height attacks (e.g. rolling signs, banners) pass overhead.
-    const playerH = sliding ? Math.round(PLAYER_H * 0.55) : PLAYER_H;
-    const playerY0 = sliding ? playerY.current + (PLAYER_H - playerH) : playerY.current;
-    const playerRect = { x: PLAYER_X, y: playerY0, w: PLAYER_W, h: playerH };
+    const playerRect = { x: PLAYER_X, y: playerY.current, w: PLAYER_W, h: PLAYER_H };
 
     for (const e of entities.current) {
       if (e.dead) continue;
@@ -509,12 +494,6 @@ export default function GameScreen() {
 
     // Floats
     if (invincibleFrames.current > 0) invincibleFrames.current -= 1;
-    // Expire slide once its timer elapses; kick off cooldown for the next slide.
-    if (slidingRef.current && Date.now() >= slideEndAtRef.current) {
-      slidingRef.current = false;
-      setSliding(false);
-      slideCooldownUntilRef.current = Date.now() + SLIDE_COOLDOWN_MS;
-    }
     // Expire shield once its timestamp has passed.
     if (shieldOn && shieldUntilRef.current > 0 && shieldUntilRef.current <= Date.now()) {
       shieldUntilRef.current = 0;
@@ -848,15 +827,13 @@ export default function GameScreen() {
       }
     }
 
-    // Player-boss collision (respects slide-compressed hitbox)
-    const bossPlayerH = sliding ? Math.round(PLAYER_H * 0.55) : PLAYER_H;
-    const bossPlayerY = sliding ? playerY.current + (PLAYER_H - bossPlayerH) : playerY.current;
-    const playerBottom = bossPlayerY + bossPlayerH;
+    // Player-boss collision
+    const playerBottom = playerY.current + PLAYER_H;
     const overlap =
       PLAYER_X < bossX.current + BOSS_W &&
       PLAYER_X + PLAYER_W > bossX.current &&
-      bossPlayerY < bossY.current + BOSS_H &&
-      bossPlayerY + bossPlayerH > bossY.current;
+      playerY.current < bossY.current + BOSS_H &&
+      playerY.current + PLAYER_H > bossY.current;
 
     if (overlap && bossInvincible.current <= 0) {
       const top = bossY.current;
@@ -969,9 +946,6 @@ export default function GameScreen() {
     ensureAudioStarted();
     if (showIntro) { setShowIntro(false); return; }
     if (pausedRef.current || gameOverRef.current || levelCompleteRef.current) return;
-    // Can't jump while sliding — finish the slide first. Reading the ref
-    // guarantees we see the up-to-date value even across tick boundaries.
-    if (slidingRef.current) return;
     if (jumpsUsed.current === 0) {
       velocityY.current = JUMP_V * playerJumpMult;
       jumpsUsed.current = 1;
@@ -983,52 +957,6 @@ export default function GameScreen() {
       playSfx(jumpPlayer);
     }
   };
-
-  // Swipe-down slide: crouches the player for ~0.65s, reducing hitbox height
-  // so the player can pass under shoulder-height attacks. Has a 0.5s cooldown
-  // after the slide ends. Requires being on the ground.
-  const handleSlide = () => {
-    ensureAudioStarted();
-    if (showIntro) { setShowIntro(false); return; }
-    if (pausedRef.current || gameOverRef.current || levelCompleteRef.current) return;
-    if (!onGround.current) return;
-    if (slidingRef.current) return;
-    if (Date.now() < slideCooldownUntilRef.current) return;
-    slidingRef.current = true;
-    setSliding(true);
-    slideEndAtRef.current = Date.now() + SLIDE_DURATION_MS;
-    playSfx(jumpPlayer);
-  };
-
-  // Swipe-down -> slide, tap/flick-up -> jump. Uses PanResponder so the
-  // gesture tracking survives across taps without rebuilding handlers.
-  // A ref-mirror of the handlers is kept current so the stable responder
-  // always calls the latest closure (with up-to-date state/refs).
-  const latestInputRef = useRef<{ jump: () => void; slide: () => void }>({ jump: () => {}, slide: () => {} });
-  latestInputRef.current.jump = handleJump;
-  latestInputRef.current.slide = handleSlide;
-
-  const inputPanRef = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderRelease: (_e, g) => {
-        // Swipe-down detection: prioritise DISTANCE (20 px) over velocity so a
-        // slow deliberate swipe still registers. Velocity is only a tiebreaker.
-        // Must be dominantly vertical (dy larger than |dx|).
-        const isDownSwipe =
-          g.dy >= 20 &&
-          Math.abs(g.dy) >= Math.abs(g.dx) * 1.2 &&
-          (g.vy > 0.15 || g.dy >= 40); // either a quick flick OR a big drag
-        if (isDownSwipe) {
-          latestInputRef.current.slide();
-        } else {
-          latestInputRef.current.jump();
-        }
-      },
-      onPanResponderTerminate: () => {},
-    })
-  );
 
   const throwBook = () => {
     if (ammoRef.current <= 0) return;
@@ -1097,10 +1025,6 @@ export default function GameScreen() {
     setAmmo(0);
     shieldUntilRef.current = 0;
     setShieldOn(false);
-    slidingRef.current = false;
-    setSliding(false);
-    slideEndAtRef.current = 0;
-    slideCooldownUntilRef.current = 0;
     if (!mutedRef.current) { try { bgmStartedRef.current = true; bgmPlayer.seekTo(0); bgmPlayer.play(); } catch {} }
     continueUsedRef.current = false;
   };
@@ -1323,26 +1247,7 @@ export default function GameScreen() {
             testID="shield-ring"
           />
         )}
-        {/* Slide pose: vertically squashed, bottom-aligned with dust puff */}
-        <View
-          style={{
-            position: "absolute",
-            left: 0,
-            top: sliding ? PLAYER_H * 0.45 : 0,
-            width: PLAYER_W,
-            height: sliding ? PLAYER_H * 0.55 : PLAYER_H,
-            transform: sliding ? [{ scaleY: 0.55 }] : [],
-            transformOrigin: "bottom",
-          }}
-        >
-          <PlayerSprite width={PLAYER_W} height={PLAYER_H} running={onGround.current && !sliding} />
-        </View>
-        {sliding && (
-          <View
-            pointerEvents="none"
-            style={{ position: "absolute", left: -6, bottom: -2, width: PLAYER_W + 12, height: 6, backgroundColor: "rgba(255,255,255,0.45)", borderRadius: 3 }}
-          />
-        )}
+        <PlayerSprite width={PLAYER_W} height={PLAYER_H} running={onGround.current} />
       </View>
 
       {/* Floating score texts */}
@@ -1384,11 +1289,7 @@ export default function GameScreen() {
       </View>
 
       {/* Tap zone (offset below HUD and excluding bottom-right throw button area) */}
-      <View
-        testID="touch-zone-jump"
-        style={{ position: "absolute", left: 0, right: 0, top: 130, bottom: 0 }}
-        {...inputPanRef.current.panHandlers}
-      />
+      <Pressable testID="touch-zone-jump" onPress={handleJump} style={{ position: "absolute", left: 0, right: 0, top: 130, bottom: 0 }} />
 
       {/* Throw button (bottom-right, thumb-reachable, rendered AFTER jump zone so taps are captured first) */}
       <Pressable
