@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, SafeAreaView } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, SafeAreaView, Image } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { COLORS } from "../src/theme";
-import { FemaleLibrarian, MaleLibrarian, CollectibleBook, BannerEnemy } from "../src/Sprites";
 
 export default function Title() {
   const router = useRouter();
@@ -46,32 +45,21 @@ export default function Title() {
       </View>
 
       <View style={styles.inner}>
-        <Text style={styles.kicker}>★ PRESENTS ★</Text>
+        {/* Cover art — replaces text title and char preview row */}
         <TouchableOpacity
           activeOpacity={1}
           onPress={handleSecretTap}
           testID="secret-logo-tap"
         >
-          <Text style={styles.title}>LIBRARIAN'S</Text>
-          <Text style={[styles.title, styles.titleAccent]}>QUEST</Text>
+          <Image
+            source={require("../assets/images/cover.png")}
+            style={styles.cover}
+            resizeMode="contain"
+          />
         </TouchableOpacity>
-        <Text style={styles.subtitle}>Defend the books. Dodge the banners</Text>
         {tapCount > 0 && tapCount < 5 && (
           <Text style={styles.tapHint}>{"•".repeat(tapCount)}{"◦".repeat(5 - tapCount)}</Text>
         )}
-
-        {/* Character preview row */}
-        <View style={styles.charRow}>
-          <View style={styles.charBox}>
-            <MaleLibrarian width={70} height={100} />
-          </View>
-          <View style={styles.vsBadge}>
-            <Text style={styles.vsText}>VS</Text>
-          </View>
-          <View style={styles.charBox}>
-            <BannerEnemy width={60} height={75} />
-          </View>
-        </View>
 
         <View style={styles.scorePanel}>
           <Text style={styles.scoreLabel}>HIGH SCORE</Text>
@@ -108,7 +96,8 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.bgBase },
   bgStripes: { ...StyleSheet.absoluteFillObject, opacity: 0.15 },
   shelfLine: { position: "absolute", left: 0, right: 0, height: 28, backgroundColor: COLORS.shelfDark, borderBottomWidth: 4, borderBottomColor: COLORS.shelfMid },
-  inner: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
+  inner: { flex: 1, alignItems: "center", justifyContent: "center", padding: 16 },
+  cover: { width: Dimensions.get("window").width - 32, height: undefined, aspectRatio: 9 / 16, maxHeight: Dimensions.get("window").height * 0.62 },
   kicker: { color: COLORS.muted, fontSize: 11, letterSpacing: 4, marginBottom: 6, fontWeight: "700" },
   title: { color: COLORS.parchment, fontSize: 44, fontWeight: "900", letterSpacing: 2, lineHeight: 48, textShadowColor: "#000", textShadowOffset: { width: 3, height: 3 }, textShadowRadius: 0 },
   titleAccent: { color: COLORS.gold, marginTop: 2 },
