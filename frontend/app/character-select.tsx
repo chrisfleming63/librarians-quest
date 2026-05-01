@@ -3,15 +3,28 @@ import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView } from "react-na
 import { useRouter } from "expo-router";
 import { COLORS } from "../src/theme";
 import { MaleLibrarian, FemaleLibrarian } from "../src/Sprites";
+import { RewardedAdOverlay } from "../src/RewardedAdOverlay";
 
 export default function CharacterSelect() {
   const router = useRouter();
   const [selected, setSelected] = useState<"male" | "female" | null>(null);
+  const [adVisible, setAdVisible] = useState(false);
 
-  const startGame = () => {
+  const goToGame = (bonus?: "shield") => {
     if (!selected) return;
-    router.replace({ pathname: "/intro", params: { character: selected } });
+    router.replace({
+      pathname: "/intro",
+      params: bonus ? { character: selected, bonus } : { character: selected },
+    });
   };
+
+  const startGame = () => goToGame();
+  const watchAdForBonus = () => {
+    if (!selected) return;
+    setAdVisible(true);
+  };
+  const onAdComplete = () => { setAdVisible(false); goToGame("shield"); };
+  const onAdSkip = () => { setAdVisible(false); };
 
   return (
     <SafeAreaView style={styles.safe} testID="character-select-screen">
@@ -64,9 +77,32 @@ export default function CharacterSelect() {
         <Text style={styles.startBtnText}>{selected ? "▶  LET'S GO!" : "PICK A HERO"}</Text>
       </TouchableOpacity>
 
+      {/* Optional pre-run bonus via rewarded ad (skippable). */}
+      {selected && (
+        <TouchableOpacity
+          testID="watch-ad-bonus-button"
+          style={styles.bonusBtn}
+          onPress={watchAdForBonus}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.bonusBtnText}>+  WATCH AD for 15s SHIELD</Text>
+          <Text style={styles.bonusBtnSub}>optional</Text>
+        </TouchableOpacity>
+      )}
+
       <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} testID="back-button">
         <Text style={styles.backText}>◀ back</Text>
       </TouchableOpacity>
+
+      <RewardedAdOverlay
+        visible={adVisible}
+        duration={3}
+        skippable
+        onComplete={onAdComplete}
+        onSkip={onAdSkip}
+        title="PRE-RUN BONUS"
+        subtitle="Watch this ad to start your run with a 15-second shield."
+      />
     </SafeAreaView>
   );
 }
@@ -97,6 +133,9 @@ const styles = StyleSheet.create({
   startBtn: { marginTop: 12, alignSelf: "center", backgroundColor: COLORS.neonOrange, paddingVertical: 16, paddingHorizontal: 50, borderWidth: 4, borderColor: "#000" },
   startBtnDisabled: { backgroundColor: "#555", opacity: 0.6 },
   startBtnText: { color: "#000", fontWeight: "900", fontSize: 16, letterSpacing: 2 },
+  bonusBtn: { alignSelf: "center", marginTop: 10, paddingVertical: 10, paddingHorizontal: 22, borderWidth: 2, borderColor: COLORS.gold, backgroundColor: "rgba(255, 215, 0, 0.08)", alignItems: "center" },
+  bonusBtnText: { color: COLORS.gold, fontSize: 12, fontWeight: "900", letterSpacing: 2 },
+  bonusBtnSub: { color: COLORS.muted, fontSize: 8, letterSpacing: 2, fontStyle: "italic", marginTop: 2 },
   backBtn: { alignSelf: "center", marginTop: 14, padding: 8 },
   backText: { color: COLORS.muted, fontSize: 13, letterSpacing: 1 },
 });

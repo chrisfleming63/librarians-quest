@@ -22,7 +22,7 @@ const PANEL_MS = 1800; // auto-advance
 
 export default function Intro() {
   const router = useRouter();
-  const { character } = useLocalSearchParams<{ character?: string }>();
+  const { character, bonus } = useLocalSearchParams<{ character?: string; bonus?: string }>();
   const [idx, setIdx] = useState(0);
   const fade = useRef(new Animated.Value(0)).current;
 
@@ -47,9 +47,14 @@ export default function Intro() {
   // When we run past the last panel, replace into /game
   useEffect(() => {
     if (idx >= PANELS.length) {
-      router.replace({ pathname: "/game", params: { character: character || "female" } });
+      router.replace({
+        pathname: "/game",
+        params: bonus
+          ? { character: character || "female", bonus }
+          : { character: character || "female" },
+      });
     }
-  }, [idx, character, router]);
+  }, [idx, character, bonus, router]);
 
   // Tap anywhere to skip to next panel immediately
   const handleTap = () => {

@@ -12,6 +12,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAudioPlayer, setAudioModeAsync } from "expo-audio";
 import { COLORS, BOOK_TITLES } from "../src/theme";
 import { MaleLibrarian, FemaleLibrarian, BannerEnemy, BossProtester, CollectibleBook } from "../src/Sprites";
+import { RewardedAdOverlay } from "../src/RewardedAdOverlay";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 
@@ -184,7 +185,7 @@ const nextId = () => __idCtr++;
 
 export default function GameScreen() {
   const router = useRouter();
-  const { character, startLevel: startLevelParam } = useLocalSearchParams<{ character?: string; startLevel?: string }>();
+  const { character, startLevel: startLevelParam, bonus: bonusParam } = useLocalSearchParams<{ character?: string; startLevel?: string; bonus?: string }>();
   const isFemale = character === "female";
 
   // Dev / boss-test entry: ?startLevel=N allows jumping straight to any level.
@@ -192,6 +193,8 @@ export default function GameScreen() {
   const initialLevel = Math.max(1, Math.min(99, parseInt(String(startLevelParam ?? "1"), 10) || 1));
   const initialIsBoss = initialLevel > 1 && isBossLevel(initialLevel);
   const initialBossHp = initialIsBoss ? getBossHp(initialLevel) : 0;
+  // Optional pre-run bonus (?bonus=shield) — grants a 15s shield at mount.
+  const initialBonusShield = bonusParam === "shield";
 
   // Character differentiation
   // Marcus (male):  slightly slower run, larger book projectile hitbox
@@ -257,8 +260,12 @@ export default function GameScreen() {
   const [ammo, setAmmo] = useState(0);
   const ammoRef = useRef(0);
   // Shield power-up: timestamp (ms) until which the player is invulnerable.
-  const shieldUntilRef = useRef(0);
-  const [shieldOn, setShieldOn] = useState(false);
+  // Pre-run ad bonus grants a 15-second shield at mount.
+  const shieldUntilRef = useRef(initialBonusShield ? Date.now() + 15000 : 0);
+  const [shieldOn, setShieldOn] = useState(initialBonusShield);
+  // One-shot "Continue (Watch Ad)" per run.
+  const continueUsedRef = useRef(false);
+  const [adVisible, setAdVisible] = useState(false);
 
   const [floatTexts, setFloatTexts] = useState<{ id: number; x: number; y: number; text: string; color: string; ttl: number }[]>([]);
   const floatTextsRef = useRef<typeof floatTexts>([]);
@@ -980,6 +987,33 @@ export default function GameScreen() {
     shieldUntilRef.current = 0;
     setShieldOn(false);
     if (!mutedRef.current) { try { bgmStartedRef.current = true; bgmPlayer.seekTo(0); bgmPlayer.play(); } catch {} }
+    continueUsedRef.current = false;
+  };
+
+  // Rewarded-ad Continue: revive with 1 life at the current level.
+  // Limited to once per run (tracked by continueUsedRef).
+  const continueRun = () => {
+    if (continueUsedRef.current) return;
+    setAdVisible(true);
+  };
+
+  const onContinueAdComplete = () => {
+    setAdVisible(false);
+    continueUsedRef.current = true;
+    gameOverRef.current = false;
+    setGameOver(false);
+    livesRef.current = 1;
+    setLives(1);
+    invincibleFrames.current = 90; // brief i-frames after revive
+    playerY.current = GROUND_Y - PLAYER_H;
+    velocityY.current = 0;
+    onGround.current = true;
+    // Grant a 3-second shield so the player has breathing room
+    shieldUntilRef.current = Date.now() + 3000;
+    setShieldOn(true);
+    // Restart BGM if unmuted
+    if (!mutedRef.current) { try { bgmPlayer.play(); } catch {} }
+    addFloat(PLAYER_X, playerY.current - 20, "REVIVED!", COLORS.gold);
   };
 
   const togglePause = () => {
@@ -1302,6 +1336,16 @@ export default function GameScreen() {
             </View>
             {score >= highScore && score > 0 && <Text style={styles.newRecord}>★ NEW RECORD ★</Text>}
           </View>
+          {!continueUsedRef.current && (
+            <TouchableOpacity
+              testID="continue-watch-ad-button"
+              style={[styles.overlayBtn, { backgroundColor: COLORS.gold }]}
+              onPress={continueRun}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.overlayBtnText}>▶  CONTINUE (WATCH AD)</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity testID="retry-game-button" style={styles.overlayBtn} onPress={restart} activeOpacity={0.8}>
             <Text style={styles.overlayBtnText}>▶  TRY AGAIN</Text>
           </TouchableOpacity>
@@ -1310,6 +1354,15 @@ export default function GameScreen() {
           </TouchableOpacity>
         </View>
       )}
+
+      {/* Rewarded-ad overlay (MOCKED — simulated 3s view) */}
+      <RewardedAdOverlay
+        visible={adVisible}
+        duration={3}
+        onComplete={onContinueAdComplete}
+        title="REVIVE?"
+        subtitle="Watch this short ad to continue where you fell."
+      />
     </View>
   );
 }
