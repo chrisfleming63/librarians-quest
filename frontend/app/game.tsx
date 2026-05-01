@@ -270,6 +270,10 @@ export default function GameScreen() {
   const bgmPlayer = useAudioPlayer(require("../assets/sounds/bgm.wav"));
   const [muted, setMuted] = useState(false);
   const mutedRef = useRef(false);
+  // Audio is started on first user gesture (required by browser and iOS audio
+  // session policies). Calling `play()` during useEffect on mount silently
+  // fails on web and on some devices.
+  const bgmStartedRef = useRef(false);
 
   // Load high score
   useEffect(() => {
@@ -278,7 +282,8 @@ export default function GameScreen() {
     });
   }, []);
 
-  // Setup audio
+  // Setup audio mode and preload settings. DOES NOT start BGM — playback must
+  // begin on a user gesture or it is silently blocked by browsers and iOS.
   useEffect(() => {
     (async () => {
       try { await setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: false }); } catch {}
@@ -288,12 +293,18 @@ export default function GameScreen() {
         jumpPlayer.volume = 0.6;
         hitPlayer.volume = 0.7;
         collectPlayer.volume = 0.55;
-        bgmPlayer.play();
       } catch {}
     })();
     return () => { try { bgmPlayer.pause(); } catch {} };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Kick audio on first user interaction. Safe to call repeatedly.
+  const ensureAudioStarted = React.useCallback(() => {
+    if (bgmStartedRef.current || mutedRef.current) return;
+    bgmStartedRef.current = true;
+    try { bgmPlayer.play(); } catch {}
+  }, [bgmPlayer]);
 
   // Intro dismisses after 1.8s
   useEffect(() => {
@@ -305,6 +316,7 @@ export default function GameScreen() {
 
   const playSfx = (p: ReturnType<typeof useAudioPlayer>) => {
     if (mutedRef.current) return;
+    ensureAudioStarted();
     try { p.seekTo(0); p.play(); } catch {}
   };
 
@@ -885,6 +897,7 @@ export default function GameScreen() {
   };
 
   const handleJump = () => {
+    ensureAudioStarted();
     if (showIntro) { setShowIntro(false); return; }
     if (pausedRef.current || gameOverRef.current || levelCompleteRef.current) return;
     if (jumpsUsed.current === 0) {
@@ -966,7 +979,7 @@ export default function GameScreen() {
     setAmmo(0);
     shieldUntilRef.current = 0;
     setShieldOn(false);
-    if (!mutedRef.current) { try { bgmPlayer.seekTo(0); bgmPlayer.play(); } catch {} }
+    if (!mutedRef.current) { try { bgmStartedRef.current = true; bgmPlayer.seekTo(0); bgmPlayer.play(); } catch {} }
   };
 
   const togglePause = () => {
