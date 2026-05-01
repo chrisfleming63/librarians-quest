@@ -10,7 +10,7 @@ export default function CharacterSelect() {
 
   const startGame = () => {
     if (!selected) return;
-    router.replace({ pathname: "/game", params: { character: selected } });
+    router.replace({ pathname: "/intro", params: { character: selected } });
   };
 
   return (
