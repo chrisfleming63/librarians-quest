@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Dimensions,
   Pressable,
+  PanResponder,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -267,6 +268,13 @@ export default function GameScreen() {
   const continueUsedRef = useRef(false);
   const [adVisible, setAdVisible] = useState(false);
 
+  // Slide / dodge mechanic (swipe-down)
+  const SLIDE_DURATION_MS = 650;
+  const SLIDE_COOLDOWN_MS = 500; // after slide ends
+  const slideEndAtRef = useRef(0);
+  const slideCooldownUntilRef = useRef(0);
+  const [sliding, setSliding] = useState(false);
+
   const [floatTexts, setFloatTexts] = useState<{ id: number; x: number; y: number; text: string; color: string; ttl: number }[]>([]);
   const floatTextsRef = useRef<typeof floatTexts>([]);
 
@@ -415,7 +423,11 @@ export default function GameScreen() {
     }
 
     // Entity movement & collision (shared)
-    const playerRect = { x: PLAYER_X, y: playerY.current, w: PLAYER_W, h: PLAYER_H };
+    // Slide compresses the player's hitbox to ~55% height, bottom-aligned,
+    // so shoulder-height attacks (e.g. rolling signs, banners) pass overhead.
+    const playerH = sliding ? Math.round(PLAYER_H * 0.55) : PLAYER_H;
+    const playerY0 = sliding ? playerY.current + (PLAYER_H - playerH) : playerY.current;
+    const playerRect = { x: PLAYER_X, y: playerY0, w: PLAYER_W, h: playerH };
 
     for (const e of entities.current) {
       if (e.dead) continue;
@@ -494,6 +506,11 @@ export default function GameScreen() {
 
     // Floats
     if (invincibleFrames.current > 0) invincibleFrames.current -= 1;
+    // Expire slide once its timer elapses; kick off cooldown for the next slide.
+    if (sliding && Date.now() >= slideEndAtRef.current) {
+      setSliding(false);
+      slideCooldownUntilRef.current = Date.now() + SLIDE_COOLDOWN_MS;
+    }
     // Expire shield once its timestamp has passed.
     if (shieldOn && shieldUntilRef.current > 0 && shieldUntilRef.current <= Date.now()) {
       shieldUntilRef.current = 0;
@@ -699,6 +716,10 @@ export default function GameScreen() {
   };
 
   // === Boss level ===
+  // Telegraph-phase sign volley: queues up to 2 ground projectiles to be
+  // fired during a telegraph window (occasional, adds variation).
+  const bossTelegraphVolleyRef = useRef({ remaining: 0, nextFrame: 0 });
+
   const stepBoss = () => {
     // Boss physics (gravity + occasional jump)
     bossVy.current += GRAVITY * 0.9;
@@ -711,6 +732,17 @@ export default function GameScreen() {
     const BOSS_MIN_X = 22;
     const BOSS_MAX_X = SCREEN_W - BOSS_W - 30;
     const DASH_TARGET_X = 30;
+
+    // Level-scaled difficulty tuning. bossTier = 0 at L5, 1 at L10, ...
+    const lvlNow = levelRef.current;
+    const bossTier = Math.max(0, Math.floor(lvlNow / 5) - 1);
+    //  Dash speed +12% base, +2.5% per tier, capped at +35%.
+    const dashSpeedMult = Math.min(1.35, 1.12 + bossTier * 0.025);
+    //  Retreat recovery shrinks with tier (min 45 frames = 0.75s).
+    const retreatFrames = Math.max(45, 80 - bossTier * 6);
+    //  Dash duration shrinks slightly so the dash covers the same distance faster.
+    const dashFrames = Math.max(22, 35 - bossTier * 2);
+
     bossPhaseTimerRef.current -= 1;
     if (bossPhaseRef.current === "pace") {
       bossX.current += bossDir.current * 2.2;
@@ -720,19 +752,39 @@ export default function GameScreen() {
         bossPhaseRef.current = "telegraph";
         bossPhaseTimerRef.current = 45;
         addFloat(bossX.current + 30, bossY.current - 18, "⚠ DASH!", COLORS.ruby);
+        // 40% chance to pre-load a 2-shot telegraph volley (extra attack variation)
+        if (Math.random() < 0.4) {
+          bossTelegraphVolleyRef.current = { remaining: 2, nextFrame: 8 };
+        }
       }
     } else if (bossPhaseRef.current === "telegraph") {
-      // freeze in place, brief warning window for the player to react
+      // freeze in place, brief warning window for the player to react.
+      // Fire up to 2 ground projectiles during the window.
+      if (bossTelegraphVolleyRef.current.remaining > 0) {
+        bossTelegraphVolleyRef.current.nextFrame -= 1;
+        if (bossTelegraphVolleyRef.current.nextFrame <= 0) {
+          entities.current.push({
+            id: nextId(),
+            x: bossX.current,
+            y: GROUND_Y - 28,
+            kind: "sign",
+            signText: "BANNED",
+          });
+          bossTelegraphVolleyRef.current.remaining -= 1;
+          bossTelegraphVolleyRef.current.nextFrame = 18;
+        }
+      }
       if (bossPhaseTimerRef.current <= 0) {
         bossPhaseRef.current = "dash";
-        bossPhaseTimerRef.current = 35;
+        bossPhaseTimerRef.current = dashFrames;
+        bossTelegraphVolleyRef.current.remaining = 0;
       }
     } else if (bossPhaseRef.current === "dash") {
-      bossX.current -= 6;
+      bossX.current -= 6 * dashSpeedMult;
       if (bossX.current <= DASH_TARGET_X || bossPhaseTimerRef.current <= 0) {
         bossX.current = Math.max(DASH_TARGET_X, bossX.current);
         bossPhaseRef.current = "retreat";
-        bossPhaseTimerRef.current = 80;
+        bossPhaseTimerRef.current = retreatFrames;
       }
     } else if (bossPhaseRef.current === "retreat") {
       bossX.current += 3;
@@ -792,18 +844,24 @@ export default function GameScreen() {
       }
     }
 
-    // Player-boss collision
-    const playerBottom = playerY.current + PLAYER_H;
+    // Player-boss collision (respects slide-compressed hitbox)
+    const bossPlayerH = sliding ? Math.round(PLAYER_H * 0.55) : PLAYER_H;
+    const bossPlayerY = sliding ? playerY.current + (PLAYER_H - bossPlayerH) : playerY.current;
+    const playerBottom = bossPlayerY + bossPlayerH;
     const overlap =
       PLAYER_X < bossX.current + BOSS_W &&
       PLAYER_X + PLAYER_W > bossX.current &&
-      playerY.current < bossY.current + BOSS_H &&
-      playerY.current + PLAYER_H > bossY.current;
+      bossPlayerY < bossY.current + BOSS_H &&
+      bossPlayerY + bossPlayerH > bossY.current;
 
     if (overlap && bossInvincible.current <= 0) {
       const top = bossY.current;
-      // Stomp detection works in ALL boss phases — player can always safely jump on boss's head
-      if (velocityY.current > 0 && playerBottom - velocityY.current <= top + 20) {
+      const phase = bossPhaseRef.current;
+      // Stomp is ONLY safe after the dash completes — i.e. during pace or retreat.
+      // During telegraph (wind-up) or dash (active attack), any contact causes damage.
+      const stompable = phase === "pace" || phase === "retreat";
+      const stompHit = velocityY.current > 0 && playerBottom - velocityY.current <= top + 20;
+      if (stompable && stompHit) {
         // hit boss
         bossHpRef.current -= 1;
         setBossHp(bossHpRef.current);
@@ -815,12 +873,12 @@ export default function GameScreen() {
         if (bossHpRef.current <= 0) {
           defeatBoss();
         }
-      } else if (bossPhaseRef.current === "dash") {
-        // Only deal contact damage when the boss is actively attacking (dashing).
-        // During pace / telegraph / retreat phases, the player can safely
-        // approach and position without taking damage.
+      } else if (phase === "dash" || phase === "telegraph") {
+        // Active-attack phases (dash in motion; telegraph wind-up) deal damage on contact.
         takeDamage(PLAYER_X, playerY.current);
       }
+      // During pace / retreat with a non-stomp overlap (e.g. walking into the
+      // boss at torso height), no damage is dealt — boss acts as a solid wall.
     }
   };
 
@@ -907,6 +965,8 @@ export default function GameScreen() {
     ensureAudioStarted();
     if (showIntro) { setShowIntro(false); return; }
     if (pausedRef.current || gameOverRef.current || levelCompleteRef.current) return;
+    // Can't jump while sliding — finish the slide first.
+    if (sliding) return;
     if (jumpsUsed.current === 0) {
       velocityY.current = JUMP_V * playerJumpMult;
       jumpsUsed.current = 1;
@@ -918,6 +978,45 @@ export default function GameScreen() {
       playSfx(jumpPlayer);
     }
   };
+
+  // Swipe-down slide: crouches the player for ~0.65s, reducing hitbox height
+  // so the player can pass under shoulder-height attacks. Has a 0.5s cooldown
+  // after the slide ends. Requires being on the ground.
+  const handleSlide = () => {
+    ensureAudioStarted();
+    if (showIntro) { setShowIntro(false); return; }
+    if (pausedRef.current || gameOverRef.current || levelCompleteRef.current) return;
+    if (!onGround.current) return;
+    if (sliding) return;
+    if (Date.now() < slideCooldownUntilRef.current) return;
+    setSliding(true);
+    slideEndAtRef.current = Date.now() + SLIDE_DURATION_MS;
+    playSfx(jumpPlayer);
+  };
+
+  // Swipe-down -> slide, tap/flick-up -> jump. Uses PanResponder so the
+  // gesture tracking survives across taps without rebuilding handlers.
+  // A ref-mirror of the handlers is kept current so the stable responder
+  // always calls the latest closure (with up-to-date state/refs).
+  const latestInputRef = useRef<{ jump: () => void; slide: () => void }>({ jump: () => {}, slide: () => {} });
+  latestInputRef.current.jump = handleJump;
+  latestInputRef.current.slide = handleSlide;
+
+  const inputPanRef = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderRelease: (_e, g) => {
+        // Swipe-down: dy > 25 px AND vy > 0.25 px/ms AND dominant vertical
+        if (g.dy > 25 && g.vy > 0.25 && Math.abs(g.dy) > Math.abs(g.dx)) {
+          latestInputRef.current.slide();
+        } else {
+          latestInputRef.current.jump();
+        }
+      },
+      onPanResponderTerminate: () => {},
+    })
+  );
 
   const throwBook = () => {
     if (ammoRef.current <= 0) return;
@@ -1189,7 +1288,7 @@ export default function GameScreen() {
       })}
 
       {/* Player */}
-      <View style={{ position: "absolute", left: PLAYER_X, top: playerY.current, opacity: flicker ? 0.3 : 1 }} testID="player-sprite">
+      <View style={{ position: "absolute", left: PLAYER_X, top: playerY.current, width: PLAYER_W, height: PLAYER_H, opacity: flicker ? 0.3 : 1 }} testID="player-sprite">
         {shieldOn && shieldUntilRef.current > Date.now() && (
           <View
             pointerEvents="none"
@@ -1208,7 +1307,26 @@ export default function GameScreen() {
             testID="shield-ring"
           />
         )}
-        <PlayerSprite width={PLAYER_W} height={PLAYER_H} running={onGround.current} />
+        {/* Slide pose: vertically squashed, bottom-aligned with dust puff */}
+        <View
+          style={{
+            position: "absolute",
+            left: 0,
+            top: sliding ? PLAYER_H * 0.45 : 0,
+            width: PLAYER_W,
+            height: sliding ? PLAYER_H * 0.55 : PLAYER_H,
+            transform: sliding ? [{ scaleY: 0.55 }] : [],
+            transformOrigin: "bottom",
+          }}
+        >
+          <PlayerSprite width={PLAYER_W} height={PLAYER_H} running={onGround.current && !sliding} />
+        </View>
+        {sliding && (
+          <View
+            pointerEvents="none"
+            style={{ position: "absolute", left: -6, bottom: -2, width: PLAYER_W + 12, height: 6, backgroundColor: "rgba(255,255,255,0.45)", borderRadius: 3 }}
+          />
+        )}
       </View>
 
       {/* Floating score texts */}
@@ -1250,7 +1368,11 @@ export default function GameScreen() {
       </View>
 
       {/* Tap zone (offset below HUD and excluding bottom-right throw button area) */}
-      <Pressable testID="touch-zone-jump" onPress={handleJump} style={{ position: "absolute", left: 0, right: 0, top: 130, bottom: 0 }} />
+      <View
+        testID="touch-zone-jump"
+        style={{ position: "absolute", left: 0, right: 0, top: 130, bottom: 0 }}
+        {...inputPanRef.current.panHandlers}
+      />
 
       {/* Throw button (bottom-right, thumb-reachable, rendered AFTER jump zone so taps are captured first) */}
       <Pressable
