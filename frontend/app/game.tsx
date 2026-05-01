@@ -270,7 +270,7 @@ export default function GameScreen() {
 
   // Slide / dodge mechanic (swipe-down)
   const SLIDE_DURATION_MS = 650;
-  const SLIDE_COOLDOWN_MS = 500; // after slide ends
+  const SLIDE_COOLDOWN_MS = 250; // after slide ends — short, forgiving
   const slideEndAtRef = useRef(0);
   const slideCooldownUntilRef = useRef(0);
   // Mirror of the `sliding` state — readable from the interval-based game
@@ -969,8 +969,9 @@ export default function GameScreen() {
     ensureAudioStarted();
     if (showIntro) { setShowIntro(false); return; }
     if (pausedRef.current || gameOverRef.current || levelCompleteRef.current) return;
-    // Can't jump while sliding — finish the slide first.
-    if (sliding) return;
+    // Can't jump while sliding — finish the slide first. Reading the ref
+    // guarantees we see the up-to-date value even across tick boundaries.
+    if (slidingRef.current) return;
     if (jumpsUsed.current === 0) {
       velocityY.current = JUMP_V * playerJumpMult;
       jumpsUsed.current = 1;
@@ -1012,8 +1013,14 @@ export default function GameScreen() {
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
       onPanResponderRelease: (_e, g) => {
-        // Swipe-down: dy > 25 px AND vy > 0.25 px/ms AND dominant vertical
-        if (g.dy > 25 && g.vy > 0.25 && Math.abs(g.dy) > Math.abs(g.dx)) {
+        // Swipe-down detection: prioritise DISTANCE (20 px) over velocity so a
+        // slow deliberate swipe still registers. Velocity is only a tiebreaker.
+        // Must be dominantly vertical (dy larger than |dx|).
+        const isDownSwipe =
+          g.dy >= 20 &&
+          Math.abs(g.dy) >= Math.abs(g.dx) * 1.2 &&
+          (g.vy > 0.15 || g.dy >= 40); // either a quick flick OR a big drag
+        if (isDownSwipe) {
           latestInputRef.current.slide();
         } else {
           latestInputRef.current.jump();
