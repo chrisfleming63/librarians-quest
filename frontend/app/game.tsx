@@ -274,6 +274,10 @@ export default function GameScreen() {
   const jumpPlayer = useAudioPlayer(require("../assets/sounds/jump.wav"));
   const hitPlayer = useAudioPlayer(require("../assets/sounds/hit.wav"));
   const collectPlayer = useAudioPlayer(require("../assets/sounds/collect.wav"));
+  // Power-up SFX
+  const bookStackPlayer = useAudioPlayer(require("../assets/sounds/bookstack.wav"));
+  const shieldPickupPlayer = useAudioPlayer(require("../assets/sounds/shieldpickup.wav"));
+  const shieldHitPlayer = useAudioPlayer(require("../assets/sounds/shieldhit.wav"));
   const bgmPlayer = useAudioPlayer(require("../assets/sounds/bgm.wav"));
   const [muted, setMuted] = useState(false);
   const mutedRef = useRef(false);
@@ -300,6 +304,9 @@ export default function GameScreen() {
         jumpPlayer.volume = 0.6;
         hitPlayer.volume = 0.7;
         collectPlayer.volume = 0.55;
+        bookStackPlayer.volume = 0.55;   // percussive pickup
+        shieldPickupPlayer.volume = 0.50; // soft bubble
+        shieldHitPlayer.volume = 0.55;   // subtle block impact
       } catch {}
     })();
     return () => { try { bgmPlayer.pause(); } catch {} };
@@ -569,7 +576,7 @@ export default function GameScreen() {
       scoreRef.current += 25;
       setScore(scoreRef.current);
       addFloat(e.x, e.y, "+3 BOOKS!", COLORS.neonOrange);
-      playSfx(collectPlayer);
+      playSfx(bookStackPlayer);
       return;
     }
     if (e.kind === "shield") {
@@ -581,7 +588,7 @@ export default function GameScreen() {
       scoreRef.current += 25;
       setScore(scoreRef.current);
       addFloat(e.x, e.y, "+SHIELD!", COLORS.parchment);
-      playSfx(collectPlayer);
+      playSfx(shieldPickupPlayer);
       return;
     }
   };
@@ -594,7 +601,7 @@ export default function GameScreen() {
       setShieldOn(false);
       invincibleFrames.current = 30;
       addFloat(x, y, "BLOCKED!", COLORS.parchment);
-      playSfx(hitPlayer);
+      playSfx(shieldHitPlayer);
       return;
     }
     livesRef.current -= 1;
