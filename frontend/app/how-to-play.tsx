@@ -8,35 +8,49 @@ export default function HowToPlay() {
   const router = useRouter();
   return (
     <SafeAreaView style={styles.safe} testID="how-to-play-screen">
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>HOW TO PLAY</Text>
         <View style={styles.divider} />
 
+        {/* === CORE CONTROLS === */}
+        <Text style={styles.sectionTitle}>CORE CONTROLS</Text>
         <Row
           icon={<Text style={styles.bigEmoji}>👆</Text>}
-          title="TAP TO JUMP"
-          desc="Tap anywhere on the screen to make your librarian leap. Double-tap for a higher jump arc."
+          title="JUMP"
+          desc="Tap the screen to leap over obstacles and enemy attacks. Tap again in mid-air for a double-jump."
         />
         <Row
-          icon={<CollectibleBook width={40} height={50} color={COLORS.bookRed} />}
-          title="COLLECT BOOKS"
-          desc="Grab floating literary classics for +10 points each. Save the stories!"
+          icon={<Text style={styles.bigEmoji}>📕</Text>}
+          title="THROW BOOKS"
+          desc="Tap the book button (bottom-right) to throw a book and damage enemies from a safe distance. Each throw uses one book."
         />
         <Row
           icon={<BannerEnemy width={40} height={50} />}
-          title="DODGE BANNERS"
-          desc="Jump OVER book banner enemies to avoid them, or STOMP on them from above for +50 bonus points."
+          title="STOMP"
+          desc="Land on an enemy's head from above to deal damage — especially useful on bosses."
+        />
+
+        {/* === POWER-UPS === */}
+        <Text style={styles.sectionTitle}>POWER-UPS</Text>
+        <Row
+          icon={<CollectibleBook width={40} height={50} color={COLORS.bookRed} />}
+          title="📚  BOOK STACK"
+          desc={"• Collect books to build your stack.\n• When you have books, you can throw them at enemies.\n• Each throw uses one book."}
         />
         <Row
-          icon={<Text style={styles.bigEmoji}>❤️</Text>}
-          title="3 LIVES"
-          desc="Get hit from the side and lose a heart. Lose all three and it's game over!"
+          icon={<Text style={styles.bigEmoji}>🛡️</Text>}
+          title="SHIELD BUBBLE"
+          desc={"• Protects you from one hit.\n• Disappears after absorbing damage.\n• Glowing teal ring shows it's active."}
         />
-        <Row
-          icon={<Text style={styles.bigEmoji}>⚡</Text>}
-          title="SPEED UP"
-          desc="The library hallway gets faster the longer you survive. Stay sharp!"
-        />
+
+        {/* === BOSS TIPS === */}
+        <Text style={styles.sectionTitle}>BOSS TIPS</Text>
+        <View style={styles.tipBox}>
+          <Text style={styles.tipText}>• Jump OVER ground attacks (signs and shockwaves).</Text>
+          <Text style={styles.tipText}>• Time your jumps to STOMP the boss when it pauses.</Text>
+          <Text style={styles.tipText}>• Use BOOKS for safer ranged attacks.</Text>
+          <Text style={styles.tipText}>• Watch for the ⚠ DASH warning — get out of the way!</Text>
+        </View>
 
         <TouchableOpacity
           testID="back-to-title-button"
@@ -68,12 +82,15 @@ const styles = StyleSheet.create({
   content: { padding: 24, paddingBottom: 60 },
   title: { color: COLORS.gold, fontSize: 28, fontWeight: "900", letterSpacing: 3, textAlign: "center", marginTop: 8 },
   divider: { height: 4, backgroundColor: COLORS.muted, marginVertical: 20, borderRadius: 2 },
-  row: { flexDirection: "row", alignItems: "center", marginBottom: 22, backgroundColor: COLORS.bgSurface, borderWidth: 2, borderColor: COLORS.muted, padding: 14 },
+  sectionTitle: { color: COLORS.neonOrange, fontSize: 14, fontWeight: "900", letterSpacing: 3, marginTop: 6, marginBottom: 12 },
+  row: { flexDirection: "row", alignItems: "center", marginBottom: 14, backgroundColor: COLORS.bgSurface, borderWidth: 2, borderColor: COLORS.muted, padding: 14 },
   iconWrap: { width: 60, height: 60, alignItems: "center", justifyContent: "center", marginRight: 14 },
   bigEmoji: { fontSize: 34 },
   rowText: { flex: 1 },
-  rowTitle: { color: COLORS.gold, fontWeight: "900", fontSize: 14, letterSpacing: 2, marginBottom: 4 },
-  rowDesc: { color: COLORS.parchment, fontSize: 13, lineHeight: 18 },
-  btn: { marginTop: 20, alignSelf: "center", paddingVertical: 14, paddingHorizontal: 40, backgroundColor: COLORS.neonOrange, borderWidth: 4, borderColor: "#000" },
+  rowTitle: { color: COLORS.gold, fontWeight: "900", fontSize: 14, letterSpacing: 2, marginBottom: 6 },
+  rowDesc: { color: COLORS.parchment, fontSize: 13, lineHeight: 19 },
+  tipBox: { backgroundColor: COLORS.bgSurface, borderWidth: 2, borderColor: COLORS.gold, padding: 14, marginBottom: 18 },
+  tipText: { color: COLORS.parchment, fontSize: 13, lineHeight: 22 },
+  btn: { marginTop: 14, alignSelf: "center", paddingVertical: 14, paddingHorizontal: 40, backgroundColor: COLORS.neonOrange, borderWidth: 4, borderColor: "#000" },
   btnText: { color: "#000", fontWeight: "900", fontSize: 15, letterSpacing: 2 },
 });
