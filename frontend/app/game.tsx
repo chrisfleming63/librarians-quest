@@ -279,6 +279,7 @@ export default function GameScreen() {
   const shieldPickupPlayer = useAudioPlayer(require("../assets/sounds/shieldpickup.wav"));
   const shieldHitPlayer = useAudioPlayer(require("../assets/sounds/shieldhit.wav"));
   const bgmPlayer = useAudioPlayer(require("../assets/sounds/bgm.wav"));
+  const bossBgmPlayer = useAudioPlayer(require("../assets/sounds/boss_bgm.wav"));
   const [muted, setMuted] = useState(false);
   const mutedRef = useRef(false);
   // Audio is started on first user gesture (required by browser and iOS audio
@@ -301,6 +302,8 @@ export default function GameScreen() {
       try {
         bgmPlayer.loop = true;
         bgmPlayer.volume = 0.35;
+        bossBgmPlayer.loop = true;
+        bossBgmPlayer.volume = 0.0; // start silent; fade-in on first boss encounter
         jumpPlayer.volume = 0.6;
         hitPlayer.volume = 0.7;
         collectPlayer.volume = 0.55;
@@ -309,7 +312,11 @@ export default function GameScreen() {
         shieldHitPlayer.volume = 0.55;   // subtle block impact
       } catch {}
     })();
-    return () => { try { bgmPlayer.pause(); } catch {} };
+    return () => {
+      try { bgmPlayer.pause(); } catch {}
+      try { bossBgmPlayer.pause(); } catch {}
+      if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -317,8 +324,64 @@ export default function GameScreen() {
   const ensureAudioStarted = React.useCallback(() => {
     if (bgmStartedRef.current || mutedRef.current) return;
     bgmStartedRef.current = true;
-    try { bgmPlayer.play(); } catch {}
-  }, [bgmPlayer]);
+    // If the run begins directly on a boss level (via ?startLevel=N), start
+    // on the boss track so the player isn't greeted by the wrong music.
+    try {
+      if (initialIsBoss) {
+        currentTrackRef.current = "boss";
+        bossBgmPlayer.volume = BOSS_BGM_VOLUME;
+        bossBgmPlayer.play();
+      } else {
+        bgmPlayer.play();
+      }
+    } catch {}
+  }, [bgmPlayer, bossBgmPlayer, initialIsBoss]);
+
+  // Music-track switching with a smooth crossfade (no abrupt cuts).
+  // `currentTrackRef` mirrors which stem is "in front" so we don't issue
+  // redundant fades (e.g. when the player repeatedly damages a boss).
+  const MAIN_BGM_VOLUME = 0.35;
+  const BOSS_BGM_VOLUME = 0.45;
+  const currentTrackRef = useRef<"main" | "boss">("main");
+  const fadeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const crossfadeTo = React.useCallback(
+    (target: "main" | "boss") => {
+      if (mutedRef.current) return;
+      if (currentTrackRef.current === target) return;
+      currentTrackRef.current = target;
+
+      const from = target === "boss" ? bgmPlayer : bossBgmPlayer;
+      const to = target === "boss" ? bossBgmPlayer : bgmPlayer;
+      const targetVol = target === "boss" ? BOSS_BGM_VOLUME : MAIN_BGM_VOLUME;
+
+      // Start the incoming track (idempotent — play() on a playing source is a no-op)
+      try { to.volume = 0; to.play(); } catch {}
+      if (!bgmStartedRef.current) bgmStartedRef.current = true;
+
+      // Cancel any in-flight fade before starting a new one
+      if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
+      const STEPS = 18; // ~720 ms at 40 ms/step
+      const STEP_MS = 40;
+      let i = 0;
+      const fromStartVol = (from as { volume?: number }).volume ?? MAIN_BGM_VOLUME;
+      fadeIntervalRef.current = setInterval(() => {
+        i += 1;
+        const t = i / STEPS;
+        try { from.volume = fromStartVol * (1 - t); } catch {}
+        try { to.volume = targetVol * t; } catch {}
+        if (i >= STEPS) {
+          try { from.volume = 0; from.pause(); } catch {}
+          try { to.volume = targetVol; } catch {}
+          if (fadeIntervalRef.current) {
+            clearInterval(fadeIntervalRef.current);
+            fadeIntervalRef.current = null;
+          }
+        }
+      }, STEP_MS);
+    },
+    [bgmPlayer, bossBgmPlayer]
+  );
 
   // Intro dismisses after 1.8s
   useEffect(() => {
@@ -338,8 +401,19 @@ export default function GameScreen() {
     mutedRef.current = !mutedRef.current;
     setMuted(mutedRef.current);
     try {
-      if (mutedRef.current) bgmPlayer.pause();
-      else bgmPlayer.play();
+      if (mutedRef.current) {
+        bgmPlayer.pause();
+        bossBgmPlayer.pause();
+      } else {
+        // Resume whichever track matches the current game state
+        if (currentTrackRef.current === "boss") {
+          bossBgmPlayer.volume = BOSS_BGM_VOLUME;
+          bossBgmPlayer.play();
+        } else {
+          bgmPlayer.volume = MAIN_BGM_VOLUME;
+          bgmPlayer.play();
+        }
+      }
     } catch {}
   };
 
@@ -897,6 +971,7 @@ export default function GameScreen() {
     // Move on after the celebration window (~1600ms).
     setTimeout(() => {
       bossDefeatedAtRef.current = 0;
+      crossfadeTo("main");
       triggerLevelComplete();
     }, 1600);
   };
@@ -940,8 +1015,10 @@ export default function GameScreen() {
       bossDir.current = -1; // start moving toward player
       bossPhaseRef.current = "pace";
       bossPhaseTimerRef.current = 180;
+      crossfadeTo("boss");
     } else {
       bossActiveRef.current = false;
+      crossfadeTo("main");
     }
 
     levelCompleteRef.current = false;
@@ -1032,7 +1109,10 @@ export default function GameScreen() {
     setAmmo(0);
     shieldUntilRef.current = 0;
     setShieldOn(false);
-    if (!mutedRef.current) { try { bgmStartedRef.current = true; bgmPlayer.seekTo(0); bgmPlayer.play(); } catch {} }
+    // Always begin a new run on the main-game music
+    try { bossBgmPlayer.pause(); bossBgmPlayer.volume = 0; } catch {}
+    currentTrackRef.current = "main";
+    if (!mutedRef.current) { try { bgmStartedRef.current = true; bgmPlayer.volume = MAIN_BGM_VOLUME; bgmPlayer.seekTo(0); bgmPlayer.play(); } catch {} }
     continueUsedRef.current = false;
   };
 
@@ -1066,8 +1146,14 @@ export default function GameScreen() {
     pausedRef.current = !pausedRef.current;
     setPaused(pausedRef.current);
     try {
-      if (pausedRef.current) bgmPlayer.pause();
-      else if (!mutedRef.current) bgmPlayer.play();
+      if (pausedRef.current) {
+        bgmPlayer.pause();
+        bossBgmPlayer.pause();
+      } else if (!mutedRef.current) {
+        // Resume whichever track matches the current game state
+        if (currentTrackRef.current === "boss") bossBgmPlayer.play();
+        else bgmPlayer.play();
+      }
     } catch {}
   };
 
