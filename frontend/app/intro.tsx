@@ -18,31 +18,32 @@ const PANELS = [
   },
 ];
 
-const PANEL_MS = 1800; // auto-advance
+// Delay before the "TAP TO CONTINUE" hint becomes available — gives the
+// player a moment to read before the screen invites them onward.
+const HINT_DELAY_MS = 700;
 
 export default function Intro() {
   const router = useRouter();
   const { character, bonus } = useLocalSearchParams<{ character?: string; bonus?: string }>();
   const [idx, setIdx] = useState(0);
+  const [canTap, setCanTap] = useState(false);
   const fade = useRef(new Animated.Value(0)).current;
+  const hintBlink = useRef(new Animated.Value(0.35)).current;
+  const advancingRef = useRef(false);
 
   const goNext = React.useCallback(() => {
     setIdx((i) => i + 1);
   }, []);
 
-  // Fade in -> hold -> fade out -> advance
+  // Fade in. NO auto-advance — the player must tap to continue.
   useEffect(() => {
-    let cancelled = false;
+    advancingRef.current = false;
+    setCanTap(false);
     fade.setValue(0);
     Animated.timing(fade, { toValue: 1, duration: 350, useNativeDriver: true }).start();
-    const outTimer = setTimeout(() => {
-      if (cancelled) return;
-      Animated.timing(fade, { toValue: 0, duration: 300, useNativeDriver: true }).start(() => {
-        if (!cancelled) goNext();
-      });
-    }, PANEL_MS);
-    return () => { cancelled = true; clearTimeout(outTimer); };
-  }, [idx, fade, goNext]);
+    const enable = setTimeout(() => setCanTap(true), HINT_DELAY_MS);
+    return () => clearTimeout(enable);
+  }, [idx, fade]);
 
   // When we run past the last panel, replace into /game
   useEffect(() => {
@@ -56,14 +57,34 @@ export default function Intro() {
     }
   }, [idx, character, bonus, router]);
 
-  // Tap anywhere to skip to next panel immediately
+  // Subtle blinking "TAP TO CONTINUE" hint — only animates when canTap is true.
+  useEffect(() => {
+    if (!canTap) {
+      hintBlink.setValue(0);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(hintBlink, { toValue: 1, duration: 700, useNativeDriver: true }),
+        Animated.timing(hintBlink, { toValue: 0.25, duration: 700, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [canTap, hintBlink]);
+
+  // Player-controlled pacing: tap to advance, ignored until the hint is shown
+  // so a stray tap during the fade-in doesn't blow past the panel.
   const handleTap = () => {
-    Animated.timing(fade, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => {
+    if (!canTap || advancingRef.current) return;
+    advancingRef.current = true;
+    Animated.timing(fade, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => {
       goNext();
     });
   };
 
   const panel = PANELS[Math.min(idx, PANELS.length - 1)];
+  const isLast = idx === PANELS.length - 1;
 
   return (
     <SafeAreaView style={styles.safe} testID="intro-screen">
@@ -82,7 +103,9 @@ export default function Intro() {
               />
             ))}
           </View>
-          <Text style={styles.hint}>TAP TO CONTINUE</Text>
+          <Animated.Text style={[styles.hint, { opacity: hintBlink }]}>
+            {isLast ? "TAP TO BEGIN  ▶" : "TAP TO CONTINUE  ▶"}
+          </Animated.Text>
         </View>
       </Pressable>
     </SafeAreaView>
@@ -99,5 +122,5 @@ const styles = StyleSheet.create({
   dots: { flexDirection: "row", gap: 8, marginBottom: 14 },
   dot: { width: 10, height: 10, backgroundColor: COLORS.muted, borderWidth: 2, borderColor: "#000" },
   dotActive: { backgroundColor: COLORS.gold },
-  hint: { color: COLORS.muted, fontSize: 11, letterSpacing: 3, fontWeight: "700" },
+  hint: { color: COLORS.gold, fontSize: 12, letterSpacing: 3, fontWeight: "900" },
 });
